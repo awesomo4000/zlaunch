@@ -92,6 +92,7 @@ const State = struct {
     input: objc.id = null,
     rows: [max_visible_rows]objc.id = [_]objc.id{null} ** max_visible_rows,
     delegate: objc.id = null,
+    scroll_offset: usize = 0,
 };
 
 var state: State = undefined;
@@ -438,6 +439,7 @@ fn moveHighlight(delta: i32) void {
     } else if (s.highlighted + 1 < s.matches.items.len) {
         s.highlighted += 1;
     }
+    keepHighlightVisible();
     updateRows();
 }
 
@@ -468,13 +470,14 @@ fn updateRows() void {
     const clear_color = nsColor(0.0, 0.0);
     for (s.rows, 0..) |row, i| {
         if (row == null) continue;
-        if (i < s.matches.items.len) {
-            const app = s.apps.items[s.matches.items[i]];
+        const match_index = s.scroll_offset + i;
+        if (match_index < s.matches.items.len) {
+            const app = s.apps.items[s.matches.items[match_index]];
             msgSendVoidId(row, objc.sel("setStringValue:"), nsString(app.name));
         } else {
             msgSendVoidId(row, objc.sel("setStringValue:"), nsString(""));
         }
-        if (i == s.highlighted and i < s.matches.items.len) {
+        if (match_index == s.highlighted and match_index < s.matches.items.len) {
             msgSendVoidId(row, objc.sel("setBackgroundColor:"), selected_color);
         } else {
             msgSendVoidId(row, objc.sel("setBackgroundColor:"), clear_color);
@@ -487,6 +490,7 @@ fn filter(query: []const u8) void {
     s.matches.clearRetainingCapacity();
     s.query.clearRetainingCapacity();
     s.highlighted = 0;
+    s.scroll_offset = 0;
 
     var lower_buf: [256]u8 = undefined;
     const n = @min(query.len, lower_buf.len);
@@ -496,6 +500,15 @@ fn filter(query: []const u8) void {
         if (lowered.len == 0 or std.mem.startsWith(u8, app.name_lower, lowered)) {
             s.matches.append(s.arena, i) catch return;
         }
+    }
+}
+
+fn keepHighlightVisible() void {
+    var s = &state;
+    if (s.highlighted < s.scroll_offset) {
+        s.scroll_offset = s.highlighted;
+    } else if (s.highlighted >= s.scroll_offset + max_visible_rows) {
+        s.scroll_offset = s.highlighted + 1 - max_visible_rows;
     }
 }
 
