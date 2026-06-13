@@ -125,6 +125,7 @@ pub fn main(init: std.process.Init) !void {
 
     try discoverApplications();
     filter("");
+    registerPanelClass();
     registerDelegateClass();
     initSelectors();
     initApplication();
@@ -265,7 +266,7 @@ fn buildPanel() void {
         .size = .{ .width = 640, .height = 386 },
     };
     const style = NSWindowStyleMaskBorderless | NSWindowStyleMaskNonactivatingPanel;
-    const panel_alloc = msgSendId0(objc.cls("NSPanel"), objc.sel("alloc"));
+    const panel_alloc = msgSendId0(objc.cls("ZLPanel"), objc.sel("alloc"));
     const panel = msgSendIdRectStyleBackingDefer(panel_alloc, objc.sel("initWithContentRect:styleMask:backing:defer:"), panel_rect, style, NSBackingStoreBuffered, false);
     s.panel = panel;
 
@@ -281,14 +282,14 @@ fn buildPanel() void {
     msgSendVoidId(layer, objc.sel("setBackgroundColor:"), cgColor(nsColor(0.10, 0.96)));
     setLayerCornerRadius(layer, 14);
 
-    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, 28, nsColor(0.93, 1.0), nsColor(0.16, 0.92));
+    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, 28, nsColor(0.93, 1.0), nsColor(0.16, 0.92), true);
     s.input = input;
     msgSendVoidId(input, objc.sel("setDelegate:"), s.delegate);
     msgSendVoidId(content, objc.sel("addSubview:"), input);
 
     var y: CGFloat = 266;
     for (0..max_visible_rows) |i| {
-        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = 38 } }, 18, nsColor(0.87, 1.0), nsColor(0.0, 0.0));
+        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = 38 } }, 18, nsColor(0.87, 1.0), nsColor(0.0, 0.0), false);
         s.rows[i] = row;
         msgSendVoidId(content, objc.sel("addSubview:"), row);
         y -= 38;
@@ -297,13 +298,13 @@ fn buildPanel() void {
     updateRows();
 }
 
-fn makeTextField(rect: NSRect, font_size: CGFloat, text_color: objc.id, background_color: objc.id) objc.id {
+fn makeTextField(rect: NSRect, font_size: CGFloat, text_color: objc.id, background_color: objc.id, editable: BOOL) objc.id {
     const alloc = msgSendId0(objc.cls("NSTextField"), objc.sel("alloc"));
     const field = msgSendIdRect(alloc, objc.sel("initWithFrame:"), rect);
     msgSendVoidBool(field, objc.sel("setBordered:"), false);
     msgSendVoidBool(field, objc.sel("setBezeled:"), false);
-    msgSendVoidBool(field, objc.sel("setEditable:"), true);
-    msgSendVoidBool(field, objc.sel("setSelectable:"), true);
+    msgSendVoidBool(field, objc.sel("setEditable:"), editable);
+    msgSendVoidBool(field, objc.sel("setSelectable:"), editable);
     msgSendVoidId(field, objc.sel("setFont:"), fontOfSize(font_size));
     msgSendVoidId(field, objc.sel("setTextColor:"), text_color);
     msgSendVoidId(field, objc.sel("setBackgroundColor:"), background_color);
@@ -367,6 +368,20 @@ fn positionPanel() void {
         .y = frame.origin.y + frame.size.height * 0.62 - height / 2,
     };
     msgSendVoidPoint(state.panel, objc.sel("setFrameOrigin:"), origin);
+}
+
+fn registerPanelClass() void {
+    const superclass = objc.cls("NSPanel");
+    const klass = objc.objc_allocateClassPair(superclass, "ZLPanel", 0);
+    if (klass != null) {
+        _ = objc.class_addMethod(klass, objc.sel("canBecomeKeyWindow"), @ptrCast(&returnYes), "B@:");
+        _ = objc.class_addMethod(klass, objc.sel("canBecomeMainWindow"), @ptrCast(&returnYes), "B@:");
+        objc.objc_registerClassPair(klass);
+    }
+}
+
+fn returnYes(_: objc.id, _: objc.SEL) callconv(.c) BOOL {
+    return true;
 }
 
 fn registerDelegateClass() void {
@@ -478,21 +493,10 @@ fn filter(query: []const u8) void {
     const lowered = std.ascii.lowerString(lower_buf[0..n], query[0..n]);
     s.query.appendSlice(s.arena, lowered) catch return;
     for (s.apps.items, 0..) |app, i| {
-        if (lowered.len == 0 or std.mem.indexOf(u8, app.name_lower, lowered) != null) {
+        if (lowered.len == 0 or std.mem.startsWith(u8, app.name_lower, lowered)) {
             s.matches.append(s.arena, i) catch return;
         }
     }
-    std.sort.block(usize, s.matches.items, s, matchLessThan);
-}
-
-fn matchLessThan(s: *State, lhs: usize, rhs: usize) bool {
-    const q = s.query.items;
-    const left = s.apps.items[lhs];
-    const right = s.apps.items[rhs];
-    const left_prefix = q.len == 0 or std.mem.startsWith(u8, left.name_lower, q);
-    const right_prefix = q.len == 0 or std.mem.startsWith(u8, right.name_lower, q);
-    if (left_prefix != right_prefix) return left_prefix;
-    return std.ascii.lessThanIgnoreCase(left.name, right.name);
 }
 
 fn discoverApplications() !void {
