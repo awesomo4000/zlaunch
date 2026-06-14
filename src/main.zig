@@ -29,6 +29,7 @@ const Launcher = struct {
     input: objc.TextField = .{},
     rows: ui.Rows = [_]ui.Row{.{}} ** ui.Layout.visible_rows,
     divider: objc.View = .{},
+    mode: ui.Mode = .compact,
     delegate: objc.Object = .{},
     previous_app: objc.RunningApplication = .{},
     dismissing: bool = false,
@@ -63,7 +64,7 @@ const Launcher = struct {
         self.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
         self.query.clearRetainingCapacity();
         self.filter("");
-        self.updateRows();
+        self.setMode(.compact);
         self.positionPanel();
         self.panel.makeKeyAndOrderFront();
         self.app.activateIgnoringOtherApps(true);
@@ -78,7 +79,7 @@ const Launcher = struct {
         self.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
         self.query.clearRetainingCapacity();
         self.filter("");
-        self.updateRows();
+        self.setMode(.compact);
 
         switch (behavior) {
             .return_to_previous_app => self.restorePreviousApp(),
@@ -105,12 +106,13 @@ const Launcher = struct {
     }
 
     fn positionPanel(self: *Launcher) void {
-        ui.positionPanel(self.panel);
+        ui.positionPanel(self.panel, self.mode);
     }
 
     fn setQueryFromInput(self: *Launcher) void {
         const value = self.input.stringValue();
         self.filter(std.mem.span(value.utf8()));
+        self.syncModeWithMatches();
         self.updateRows();
     }
 
@@ -126,6 +128,7 @@ const Launcher = struct {
     }
 
     fn moveHighlight(self: *Launcher, delta: i32) void {
+        if (self.mode == .compact) return;
         if (self.matches.items.len == 0) return;
         if (delta < 0) {
             if (self.highlighted > 0) self.highlighted -= 1;
@@ -141,6 +144,7 @@ const Launcher = struct {
     }
 
     fn launchHighlighted(self: *Launcher) void {
+        if (self.mode == .compact) return;
         if (self.matches.items.len == 0) {
             self.dismiss(.return_to_previous_app);
             return;
@@ -150,6 +154,7 @@ const Launcher = struct {
     }
 
     fn launchVisibleRow(self: *Launcher, visible_index: usize) bool {
+        if (self.mode == .compact) return false;
         const match_index = self.scroll_offset + visible_index;
         if (match_index >= self.matches.items.len) return false;
         self.launchMatch(match_index);
@@ -173,15 +178,32 @@ const Launcher = struct {
     }
 
     fn autocomplete(self: *Launcher) void {
+        if (self.query.items.len == 0) return;
         const completion = longestCommonAppPrefix(self.all_apps.items, self.matches.items) orelse return;
         if (completion.len <= self.query.items.len) return;
 
         self.input.setStringValue(objc.String.fromUtf8(self.arena, completion));
         self.filter(completion);
+        self.syncModeWithMatches();
         self.updateRows();
     }
 
+    fn syncModeWithMatches(self: *Launcher) void {
+        const next_mode: ui.Mode = if (self.query.items.len > 0 and self.matches.items.len > 0) .expanded else .compact;
+        self.setMode(next_mode);
+    }
+
+    fn setMode(self: *Launcher, mode: ui.Mode) void {
+        self.mode = mode;
+        ui.setMode(self.panel, self.input, self.rows, self.divider, mode);
+    }
+
     fn updateRows(self: *Launcher) void {
+        if (self.mode == .compact) {
+            for (self.rows) |row| row.clear(self.arena);
+            return;
+        }
+
         const colors = theme.Theme.current(self.app);
         for (self.rows, 0..) |row, i| {
             if (row.isEmpty()) continue;

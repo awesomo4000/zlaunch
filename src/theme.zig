@@ -9,6 +9,9 @@ pub const Theme = struct {
     selected_text: objc.Color,
     divider: objc.Color,
     accent: objc.Color,
+    shortcut_fill: objc.Color,
+    shortcut_text: objc.Color,
+    shortcut_border: objc.Color,
 
     pub fn current(app: objc.Application) Theme {
         if (app.isDarkMode()) {
@@ -21,6 +24,9 @@ pub const Theme = struct {
                 .selected_text = hexColor(Palette.Dark.selected_ink),
                 .divider = hexColor(Palette.Dark.divider),
                 .accent = hexColor(Palette.steel_cyan),
+                .shortcut_fill = hexColor(Palette.amber),
+                .shortcut_text = hexColor(Palette.Dark.near_black),
+                .shortcut_border = hexColor(Palette.Dark.divider),
             };
         }
 
@@ -33,6 +39,9 @@ pub const Theme = struct {
             .selected_text = hexColor(Palette.Light.selected_ink),
             .divider = hexColor(Palette.Light.divider),
             .accent = hexColor(Palette.steel_cyan),
+            .shortcut_fill = hexColor(Palette.amber),
+            .shortcut_text = hexColor(Palette.Light.prompt_panel),
+            .shortcut_border = hexColor(Palette.Light.divider),
         };
     }
 };
@@ -46,6 +55,7 @@ fn hexColor(comptime value: u24) objc.Color {
 
 const Palette = struct {
     const steel_cyan = 0x2e6f8e;
+    const amber = 0xa8632f;
 
     const Light = struct {
         const warm_paper = 0xf4f1ea;

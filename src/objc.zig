@@ -383,6 +383,14 @@ pub const Panel = struct {
         msgSendVoidId(self.object.id, sel("orderOut:"), null);
     }
 
+    pub fn frame(self: Panel) Rect {
+        return msgSendRect0(self.object.id, sel("frame"));
+    }
+
+    pub fn setFrame(self: Panel, rect: Rect, display: BOOL) void {
+        msgSendVoidRectBool(self.object.id, sel("setFrame:display:"), rect, display);
+    }
+
     pub fn setFrameOrigin(self: Panel, point: Point) void {
         msgSendVoidPoint(self.object.id, sel("setFrameOrigin:"), point);
     }
@@ -412,8 +420,22 @@ pub const View = struct {
         msgSendVoidBool(self.object.id, sel("setHidden:"), value);
     }
 
+    pub fn setFrame(self: View, rect: Rect) void {
+        msgSendVoidRect(self.object.id, sel("setFrame:"), rect);
+    }
+
     pub fn setFillColor(self: View, color: Color) void {
         self.layer().setBackgroundColor(color.cgColor());
+    }
+
+    pub fn setBorder(self: View, width: CGFloat, color: Color) void {
+        const view_layer = self.layer();
+        view_layer.setBorderWidth(width);
+        view_layer.setBorderColor(color.cgColor());
+    }
+
+    pub fn setCornerRadius(self: View, radius: CGFloat) void {
+        self.layer().setCornerRadius(radius);
     }
 
     pub fn layer(self: View) Layer {
@@ -456,6 +478,12 @@ pub const Layer = struct {
 pub const TextField = struct {
     object: Object = .{},
 
+    pub const Alignment = enum(NSInteger) {
+        left = 0,
+        right = 1,
+        center = 2,
+    };
+
     pub const Options = struct {
         class_name: [*:0]const u8 = "NSTextField",
         frame: Rect,
@@ -496,6 +524,18 @@ pub const TextField = struct {
 
     pub fn setStringValue(self: TextField, value: String) void {
         msgSendVoidId(self.object.id, sel("setStringValue:"), value.object.id);
+    }
+
+    pub fn setHidden(self: TextField, value: BOOL) void {
+        msgSendVoidBool(self.object.id, sel("setHidden:"), value);
+    }
+
+    pub fn setFrame(self: TextField, rect: Rect) void {
+        msgSendVoidRect(self.object.id, sel("setFrame:"), rect);
+    }
+
+    pub fn setAlignment(self: TextField, alignment: Alignment) void {
+        msgSendVoidInt(self.object.id, sel("setAlignment:"), @intFromEnum(alignment));
     }
 
     pub fn stringValue(self: TextField) String {
@@ -743,6 +783,18 @@ pub fn msgSendVoidPoint(recv: Id, op: Selector, point: Point) void {
     const Fn = *const fn (Id, Selector, Point) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
     f(recv, op, point);
+}
+
+pub fn msgSendVoidRect(recv: Id, op: Selector, rect: Rect) void {
+    const Fn = *const fn (Id, Selector, Rect) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    f(recv, op, rect);
+}
+
+pub fn msgSendVoidRectBool(recv: Id, op: Selector, rect: Rect, arg: BOOL) void {
+    const Fn = *const fn (Id, Selector, Rect, BOOL) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    f(recv, op, rect, arg);
 }
 
 pub fn msgSendSuperVoidRectIdIdIdId(recv: Id, superclass: Class, op: Selector, rect: Rect, arg1: Id, arg2: Id, arg3: Id, arg4: Id) void {
