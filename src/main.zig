@@ -142,6 +142,7 @@ fn fourcc(comptime s: *const [4]u8) u32 {
 pub fn main(init: std.process.Init) !void {
     const s = State{ .arena = init.arena.allocator(), .io = init.io, .env = init.environ_map };
     state = s;
+    const options = try parseArgs(init);
 
     try discoverApplications();
     filter("");
@@ -151,7 +152,23 @@ pub fn main(init: std.process.Init) !void {
     initApplication();
     buildPanel();
     registerHotkey();
+    if (options.show_now) showLauncher();
     runApplication();
+}
+
+const CliOptions = struct {
+    show_now: bool = false,
+};
+
+fn parseArgs(init: std.process.Init) !CliOptions {
+    var options: CliOptions = .{};
+    const args = try init.minimal.args.toSlice(init.arena.allocator());
+    for (args[1..]) |arg| {
+        if (std.mem.eql(u8, arg, "--now")) {
+            options.show_now = true;
+        }
+    }
+    return options;
 }
 
 fn initSelectors() void {
