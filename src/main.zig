@@ -106,7 +106,6 @@ var sel_cancel_operation: objc.SEL = null;
 const kEventClassKeyboard = fourcc("keyb");
 const kEventHotKeyPressed: u32 = 5;
 const cmdKey: u32 = 0x0100;
-const optionKey: u32 = 0x0800;
 const kVK_Space: u32 = 0x31;
 
 const NSApplicationActivationPolicyAccessory: NSInteger = 1;
@@ -325,7 +324,7 @@ fn registerHotkey() void {
     const target = GetApplicationEventTarget();
     const event = [_]EventTypeSpec{.{ .eventClass = kEventClassKeyboard, .eventKind = kEventHotKeyPressed }};
     _ = InstallEventHandler(target, hotkeyHandler, 1, &event, null, null);
-    _ = RegisterEventHotKey(kVK_Space, cmdKey | optionKey, .{ .signature = fourcc("zlch"), .id = 1 }, target, 0, &hotkey_ref);
+    _ = RegisterEventHotKey(kVK_Space, cmdKey, .{ .signature = fourcc("zlch"), .id = 1 }, target, 0, &hotkey_ref);
 }
 
 fn runApplication() noreturn {
@@ -340,6 +339,7 @@ fn hotkeyHandler(_: EventHandlerCallRef, _: EventRef, _: ?*anyopaque) callconv(.
 
 fn showLauncher() void {
     var s = &state;
+    resetCursor();
     msgSendVoidId(s.input, objc.sel("setStringValue:"), nsString(""));
     s.query.clearRetainingCapacity();
     filter("");
@@ -353,10 +353,16 @@ fn showLauncher() void {
 fn dismissLauncher() void {
     var s = &state;
     msgSendVoidId(s.panel, objc.sel("orderOut:"), null);
+    resetCursor();
     msgSendVoidId(s.input, objc.sel("setStringValue:"), nsString(""));
     s.query.clearRetainingCapacity();
     filter("");
     updateRows();
+}
+
+fn resetCursor() void {
+    const cursor = msgSendId0(objc.cls("NSCursor"), objc.sel("arrowCursor"));
+    msgSendVoid0(cursor, objc.sel("set"));
 }
 
 fn positionPanel() void {
