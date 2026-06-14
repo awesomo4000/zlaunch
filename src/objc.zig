@@ -450,6 +450,10 @@ pub const View = struct {
 pub const Layer = struct {
     object: Object = .{},
 
+    pub fn addSublayer(self: Layer, layer: anytype) void {
+        msgSendVoidId(self.object.id, sel("addSublayer:"), layer.object.id);
+    }
+
     pub fn setBackgroundColor(self: Layer, color: Object) void {
         msgSendVoidId(self.object.id, sel("setBackgroundColor:"), color.id);
     }
@@ -473,6 +477,67 @@ pub const Layer = struct {
     pub fn setMasksToBounds(self: Layer, value: BOOL) void {
         msgSendVoidBool(self.object.id, sel("setMasksToBounds:"), value);
     }
+};
+
+pub const TextLayer = struct {
+    object: Object = .{},
+
+    pub const Options = struct {
+        frame: Rect,
+        text: String,
+        font_size: CGFloat,
+        text_color: Color,
+    };
+
+    pub fn create(options: Options) TextLayer {
+        const layer = TextLayer{ .object = .wrap(msgSendId0(cls("CATextLayer"), sel("layer"))) };
+        layer.setFrame(options.frame);
+        layer.setString(options.text);
+        layer.setFontSize(options.font_size);
+        layer.setTextColor(options.text_color);
+        layer.setAlignment(.center);
+        layer.setContentsScale(2);
+        return layer;
+    }
+
+    pub fn setFrame(self: TextLayer, rect: Rect) void {
+        msgSendVoidRect(self.object.id, sel("setFrame:"), rect);
+    }
+
+    pub fn setString(self: TextLayer, value: String) void {
+        msgSendVoidId(self.object.id, sel("setString:"), value.object.id);
+    }
+
+    pub fn setFontSize(self: TextLayer, size: CGFloat) void {
+        msgSendVoidCGFloat(self.object.id, sel("setFontSize:"), size);
+    }
+
+    pub fn setTextColor(self: TextLayer, color: Color) void {
+        msgSendVoidId(self.object.id, sel("setForegroundColor:"), color.cgColor().id);
+    }
+
+    pub fn setHidden(self: TextLayer, value: BOOL) void {
+        msgSendVoidBool(self.object.id, sel("setHidden:"), value);
+    }
+
+    pub fn setAlignment(self: TextLayer, alignment: Alignment) void {
+        const value = switch (alignment) {
+            .left => String.fromStatic("left"),
+            .center => String.fromStatic("center"),
+            .right => String.fromStatic("right"),
+        };
+        msgSendVoidId(self.object.id, sel("setAlignmentMode:"), value.object.id);
+    }
+
+    pub fn setContentsScale(self: TextLayer, scale: CGFloat) void {
+        msgSendVoidCGFloat(self.object.id, sel("setContentsScale:"), scale);
+    }
+
+    pub const Alignment = enum {
+        left,
+        center,
+        right,
+    };
 };
 
 pub const TextField = struct {
@@ -536,6 +601,7 @@ pub const TextField = struct {
 
     pub fn setAlignment(self: TextField, alignment: Alignment) void {
         msgSendVoidInt(self.object.id, sel("setAlignment:"), @intFromEnum(alignment));
+        msgSendVoidInt(self.currentCell().id, sel("setAlignment:"), @intFromEnum(alignment));
     }
 
     pub fn stringValue(self: TextField) String {
@@ -606,6 +672,10 @@ pub const TextField = struct {
         msgSendVoidId(self.object.id, sel("setCell:"), cell.id);
     }
 
+    fn currentCell(self: TextField) Object {
+        return .wrap(msgSendId0(self.object.id, sel("cell")));
+    }
+
     fn layer(self: TextField) Layer {
         return .{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
     }
@@ -633,11 +703,10 @@ fn createTextFieldCell() Object {
 }
 
 fn paddedTextRect(self: Id, _: Selector, bounds: Rect) callconv(.c) Rect {
-    return textRect(self, bounds);
+    return textRect(self, bounds, 10);
 }
 
-fn textRect(self: Id, bounds: Rect) Rect {
-    const padding: CGFloat = 10;
+fn textRect(self: Id, bounds: Rect, padding: CGFloat) Rect {
     var rect = bounds;
     rect.origin.x += padding;
     rect.size.width = @max(@as(CGFloat, 0), rect.size.width - padding * 2);
@@ -655,7 +724,7 @@ fn editWithPaddedFrame(self: Id, _: Selector, frame: Rect, control_view: Id, edi
         self,
         cls("NSTextFieldCell"),
         sel("editWithFrame:inView:editor:delegate:event:"),
-        textRect(self, frame),
+        textRect(self, frame, 10),
         control_view,
         editor,
         delegate,
@@ -668,7 +737,7 @@ fn selectWithPaddedFrame(self: Id, _: Selector, frame: Rect, control_view: Id, e
         self,
         cls("NSTextFieldCell"),
         sel("selectWithFrame:inView:editor:delegate:start:length:"),
-        textRect(self, frame),
+        textRect(self, frame, 10),
         control_view,
         editor,
         delegate,
@@ -751,6 +820,12 @@ pub fn msgSendVoidInt(recv: Id, op: Selector, arg: NSInteger) void {
 
 pub fn msgSendVoidUInteger(recv: Id, op: Selector, arg: NSUInteger) void {
     const Fn = *const fn (Id, Selector, NSUInteger) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    f(recv, op, arg);
+}
+
+pub fn msgSendVoidCGFloat(recv: Id, op: Selector, arg: CGFloat) void {
+    const Fn = *const fn (Id, Selector, CGFloat) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
     f(recv, op, arg);
 }

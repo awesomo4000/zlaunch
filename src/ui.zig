@@ -17,7 +17,7 @@ pub const Layout = struct {
     pub const list_width: objc.CGFloat = panel_width - side_padding * 2;
     pub const input_height: objc.CGFloat = 50;
     pub const entry_font_size: objc.CGFloat = 18;
-    pub const row_number_font_size: objc.CGFloat = 13;
+    pub const row_number_font_size: objc.CGFloat = 12;
     pub const row_height: objc.CGFloat = 46;
     pub const selected_bar_width: objc.CGFloat = 2;
     pub const row_number_x_offset: objc.CGFloat = 18;
@@ -66,7 +66,7 @@ pub const Elements = struct {
 pub const Row = struct {
     background: objc.View = .{},
     number_box: objc.View = .{},
-    number: objc.TextField = .{},
+    number: objc.TextLayer = .{},
     icon: objc.View = .{},
     app_name: objc.TextField = .{},
     selected_bar: objc.View = .{},
@@ -97,12 +97,13 @@ pub const Row = struct {
         number_box.setCornerRadius(4);
         content.addSubview(number_box);
 
-        const number = makeTextField(.{
-            .origin = number_box_frame.origin,
-            .size = number_box_frame.size,
-        }, Layout.row_number_font_size, colors.muted, objc.Color.clear(), false);
-        number.setAlignment(.center);
-        content.addSubview(number);
+        const number = objc.TextLayer.create(.{
+            .frame = numberLayerFrame(number_box_frame),
+            .text = objc.String.fromStatic(""),
+            .font_size = Layout.row_number_font_size,
+            .text_color = colors.shortcut_fill,
+        });
+        number_box.layer().addSublayer(number);
 
         const icon = objc.View.create(.{
             .frame = iconFrame(y),
@@ -140,12 +141,12 @@ pub const Row = struct {
     pub fn showApp(self: Row, arena: std.mem.Allocator, slot: usize, name: []const u8) void {
         var number_buf: [1]u8 = .{@intCast('1' + slot)};
         self.setHidden(false);
-        self.number.setStringValue(objc.String.fromUtf8(arena, &number_buf));
+        self.number.setString(objc.String.fromUtf8(arena, &number_buf));
         self.app_name.setStringValue(objc.String.fromUtf8(arena, name));
     }
 
     pub fn clear(self: Row, arena: std.mem.Allocator) void {
-        self.number.setStringValue(objc.String.fromUtf8(arena, ""));
+        self.number.setString(objc.String.fromUtf8(arena, ""));
         self.app_name.setStringValue(objc.String.fromUtf8(arena, ""));
         self.setHidden(true);
     }
@@ -186,7 +187,7 @@ pub const Row = struct {
         });
         const shortcut_frame = numberBoxFrame(y);
         self.number_box.setFrame(shortcut_frame);
-        self.number.setFrame(shortcut_frame);
+        self.number.setFrame(numberLayerFrame(shortcut_frame));
         self.icon.setFrame(iconFrame(y));
         self.app_name.setFrame(.{
             .origin = .{ .x = Layout.list_x + Layout.row_label_x_offset, .y = y },
@@ -317,6 +318,13 @@ fn numberBoxFrame(y: objc.CGFloat) objc.Rect {
             .y = y + Layout.row_number_y_offset,
         },
         .size = .{ .width = Layout.row_number_width, .height = Layout.row_number_height },
+    };
+}
+
+fn numberLayerFrame(box: objc.Rect) objc.Rect {
+    return .{
+        .origin = .{ .x = 0, .y = (box.size.height - Layout.row_number_font_size) / 2 - 1 },
+        .size = .{ .width = box.size.width, .height = Layout.row_number_font_size + 2 },
     };
 }
 

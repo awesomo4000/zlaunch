@@ -12,6 +12,7 @@ pub fn build(b: *std.Build) void {
     });
     exe.root_module.linkFramework("Carbon", .{});
     exe.root_module.linkFramework("Cocoa", .{});
+    exe.root_module.linkFramework("QuartzCore", .{});
     exe.root_module.linkSystemLibrary("objc", .{});
     b.installArtifact(exe);
     const run_step = b.step("run", "Run the app");
