@@ -5,6 +5,7 @@ pub const Handler = struct {
     text_changed: *const fn (*anyopaque) void,
     move_highlight: *const fn (*anyopaque, i32) void,
     launch_highlighted: *const fn (*anyopaque) void,
+    launch_visible_row: *const fn (*anyopaque, usize) bool,
     dismiss: *const fn (*anyopaque) void,
 };
 
@@ -47,6 +48,7 @@ pub fn install(app_handler: Handler) objc.Object {
     handler = app_handler;
     command_selectors = .init();
     registerPanelClass();
+    registerInputTextFieldClass();
     return registerDelegateClass();
 }
 
@@ -63,10 +65,19 @@ fn returnYes(_: objc.Id, _: objc.Selector) callconv(.c) objc.BOOL {
     return true;
 }
 
+fn registerInputTextFieldClass() void {
+    const class = objc.allocateClassPair(objc.cls("NSTextField"), "ZLInputTextField");
+    if (class != null) {
+        _ = objc.addMethod(class, objc.sel("keyDown:"), &inputKeyDown, "v@:@");
+        objc.registerClassPair(class);
+    }
+}
+
 fn registerDelegateClass() objc.Object {
     const class = objc.allocateClassPair(objc.cls("NSObject"), "ZLDelegate");
     if (class != null) {
         _ = objc.addMethod(class, objc.sel("controlTextDidChange:"), &controlTextDidChange, "v@:@");
+        _ = objc.addMethod(class, objc.sel("control:textView:shouldChangeCharactersInRange:replacementString:"), &shouldChangeText, "c@:@@{_NSRange=QQ}@");
         _ = objc.addMethod(class, objc.sel("control:textView:doCommandBySelector:"), &doCommandBySelector, "c@:@@:");
         _ = objc.addMethod(class, objc.sel("windowDidResignKey:"), &windowDidResignKey, "v@:@");
         objc.registerClassPair(class);
@@ -76,6 +87,10 @@ fn registerDelegateClass() objc.Object {
 
 fn controlTextDidChange(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) void {
     handler.text_changed(handler.context);
+}
+
+fn shouldChangeText(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, _: objc.Range, replacement: objc.Id) callconv(.c) objc.BOOL {
+    return !tryLaunchNumber(replacement);
 }
 
 fn doCommandBySelector(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, selector: objc.Selector) callconv(.c) objc.BOOL {
@@ -91,4 +106,25 @@ fn doCommandBySelector(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, sel
 
 fn windowDidResignKey(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) void {
     handler.dismiss(handler.context);
+}
+
+fn inputKeyDown(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) void {
+    const characters = objc.msgSendId0(event, objc.sel("charactersIgnoringModifiers"));
+    if (tryLaunchNumber(characters)) return;
+
+    objc.msgSendSuperVoidId(self, objc.cls("NSTextField"), objc.sel("keyDown:"), event);
+}
+
+fn tryLaunchNumber(characters_id: objc.Id) bool {
+    if (characters_id == null) return false;
+
+    const characters = objc.String{ .object = .wrap(characters_id) };
+    if (characters.length() == 1) {
+        const character = characters.characterAtIndex(0);
+        if (character >= '1' and character <= '5') {
+            return handler.launch_visible_row(handler.context, character - '1');
+        }
+    }
+
+    return false;
 }

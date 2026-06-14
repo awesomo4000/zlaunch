@@ -118,6 +118,14 @@ pub const String = struct {
     pub fn isEqualToString(self: String, other: String) BOOL {
         return msgSendBoolId(self.object.id, sel("isEqualToString:"), other.object.id);
     }
+
+    pub fn length(self: String) NSUInteger {
+        return msgSendUInteger0(self.object.id, sel("length"));
+    }
+
+    pub fn characterAtIndex(self: String, index: NSUInteger) u16 {
+        return msgSendU16UInteger(self.object.id, sel("characterAtIndex:"), index);
+    }
 };
 
 pub const Color = struct {
@@ -449,6 +457,7 @@ pub const TextField = struct {
     object: Object = .{},
 
     pub const Options = struct {
+        class_name: [*:0]const u8 = "NSTextField",
         frame: Rect,
         font: Font,
         text_color: Color,
@@ -460,7 +469,7 @@ pub const TextField = struct {
     pub fn create(options: Options) TextField {
         ensureTextFieldCellClass();
 
-        const allocated = Object.alloc("NSTextField");
+        const allocated = Object.alloc(options.class_name);
         const field = TextField{ .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)) };
         field.setCell(createTextFieldCell());
         field.setBordered(false);
@@ -706,8 +715,20 @@ pub fn msgSendVoidUInteger(recv: Id, op: Selector, arg: NSUInteger) void {
     f(recv, op, arg);
 }
 
+pub fn msgSendUInteger0(recv: Id, op: Selector) NSUInteger {
+    const Fn = *const fn (Id, Selector) callconv(.c) NSUInteger;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op);
+}
+
 pub fn msgSendBoolUInteger(recv: Id, op: Selector, arg: NSUInteger) BOOL {
     const Fn = *const fn (Id, Selector, NSUInteger) callconv(.c) BOOL;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, arg);
+}
+
+pub fn msgSendU16UInteger(recv: Id, op: Selector, arg: NSUInteger) u16 {
+    const Fn = *const fn (Id, Selector, NSUInteger) callconv(.c) u16;
     const f: Fn = @ptrCast(&objc_msgSend);
     return f(recv, op, arg);
 }
@@ -736,6 +757,13 @@ pub fn msgSendSuperVoidRectIdIdIdUIntegerUInteger(recv: Id, superclass: Class, o
     const Fn = *const fn (*Super, Selector, Rect, Id, Id, Id, NSUInteger, NSUInteger) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSendSuper);
     f(&super, op, rect, arg1, arg2, arg3, arg4, arg5);
+}
+
+pub fn msgSendSuperVoidId(recv: Id, superclass: Class, op: Selector, arg: Id) void {
+    var super = Super{ .receiver = recv, .super_class = superclass };
+    const Fn = *const fn (*Super, Selector, Id) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSendSuper);
+    f(&super, op, arg);
 }
 
 pub fn msgSendIdCString(recv: Id, op: Selector, arg: [*:0]const u8) Id {

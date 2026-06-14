@@ -15,8 +15,12 @@ pub const Layout = struct {
     pub const list_width: objc.CGFloat = panel_width - side_padding * 2;
     pub const input_height: objc.CGFloat = 50;
     pub const entry_font_size: objc.CGFloat = 18;
+    pub const row_number_font_size: objc.CGFloat = 15;
     pub const row_height: objc.CGFloat = 46;
     pub const selected_bar_width: objc.CGFloat = 2;
+    pub const row_number_x_offset: objc.CGFloat = 24;
+    pub const row_number_width: objc.CGFloat = 34;
+    pub const row_label_x_offset: objc.CGFloat = 76;
     pub const panel_corner_radius: objc.CGFloat = 12;
     pub const input_corner_radius: objc.CGFloat = 5;
     pub const visible_rows = 5;
@@ -37,15 +41,20 @@ pub const Elements = struct {
 };
 
 pub const Row = struct {
-    label: objc.TextField = .{},
+    background: objc.View = .{},
+    number: objc.TextField = .{},
+    app_name: objc.TextField = .{},
     selected_bar: objc.View = .{},
 
     pub fn create(content: objc.View, y: objc.CGFloat, colors: theme.Theme) Row {
-        const label = makeTextField(.{
-            .origin = .{ .x = Layout.list_x, .y = y },
-            .size = .{ .width = Layout.list_width, .height = Layout.row_height },
-        }, colors.text, objc.Color.clear(), false);
-        content.addSubview(label);
+        const background = objc.View.create(.{
+            .frame = .{
+                .origin = .{ .x = Layout.list_x, .y = y },
+                .size = .{ .width = Layout.list_width, .height = Layout.row_height },
+            },
+            .background_color = objc.Color.clear(),
+        });
+        content.addSubview(background);
 
         const selected_bar = objc.View.create(.{
             .frame = .{
@@ -57,35 +66,52 @@ pub const Row = struct {
         selected_bar.setHidden(true);
         content.addSubview(selected_bar);
 
-        return .{ .label = label, .selected_bar = selected_bar };
+        const number = makeTextField(.{
+            .origin = .{ .x = Layout.list_x, .y = y },
+            .size = .{ .width = Layout.row_number_x_offset + Layout.row_number_width, .height = Layout.row_height },
+        }, Layout.row_number_font_size, colors.muted, objc.Color.clear(), false);
+        content.addSubview(number);
+
+        const app_name = makeTextField(.{
+            .origin = .{ .x = Layout.list_x + Layout.row_label_x_offset, .y = y },
+            .size = .{ .width = Layout.list_width - Layout.row_label_x_offset, .height = Layout.row_height },
+        }, Layout.entry_font_size, colors.text, objc.Color.clear(), false);
+        content.addSubview(app_name);
+
+        return .{ .background = background, .number = number, .app_name = app_name, .selected_bar = selected_bar };
     }
 
     pub fn isEmpty(self: Row) bool {
-        return self.label.isNil();
+        return self.app_name.isNil();
     }
 
     pub fn setAccent(self: Row, color: objc.Color) void {
         self.selected_bar.setFillColor(color);
     }
 
-    pub fn showApp(self: Row, arena: std.mem.Allocator, name: []const u8) void {
-        self.label.setStringValue(objc.String.fromUtf8(arena, name));
+    pub fn showApp(self: Row, arena: std.mem.Allocator, slot: usize, name: []const u8) void {
+        var number_buf: [1]u8 = .{@intCast('1' + slot)};
+        self.number.setStringValue(objc.String.fromUtf8(arena, &number_buf));
+        self.app_name.setStringValue(objc.String.fromUtf8(arena, name));
     }
 
     pub fn clear(self: Row, arena: std.mem.Allocator) void {
-        self.label.setStringValue(objc.String.fromUtf8(arena, ""));
+        self.number.setStringValue(objc.String.fromUtf8(arena, ""));
+        self.app_name.setStringValue(objc.String.fromUtf8(arena, ""));
     }
 
     pub fn setSelected(self: Row, selected: bool, colors: theme.Theme) void {
         if (selected) {
-            self.label.setFillColor(colors.selected);
-            self.label.setTextColor(colors.selected_text);
+            self.background.setFillColor(colors.selected);
+            self.number.setTextColor(colors.selected_text);
+            self.app_name.setTextColor(colors.selected_text);
             self.selected_bar.setHidden(false);
             return;
         }
 
-        self.label.setFillColor(objc.Color.clear());
-        self.label.setTextColor(colors.muted);
+        self.background.setFillColor(objc.Color.clear());
+        self.number.setTextColor(colors.muted);
+        self.app_name.setTextColor(colors.muted);
         self.selected_bar.setHidden(true);
     }
 };
@@ -117,7 +143,7 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
     const input = makeTextField(.{
         .origin = .{ .x = Layout.input_x, .y = Layout.input_y },
         .size = .{ .width = Layout.input_width, .height = Layout.input_height },
-    }, colors.text, colors.input, true);
+    }, Layout.entry_font_size, colors.text, colors.input, true);
     input.setBorder(1.5, colors.accent);
     input.setCornerRadius(Layout.input_corner_radius);
     input.setDelegate(delegate);
@@ -165,10 +191,11 @@ pub fn positionPanel(panel: objc.Panel) void {
     });
 }
 
-fn makeTextField(rect: objc.Rect, text_color: objc.Color, background_color: objc.Color, editable: objc.BOOL) objc.TextField {
+fn makeTextField(rect: objc.Rect, font_size: objc.CGFloat, text_color: objc.Color, background_color: objc.Color, editable: objc.BOOL) objc.TextField {
     return objc.TextField.create(.{
+        .class_name = if (editable) "ZLInputTextField" else "NSTextField",
         .frame = rect,
-        .font = objc.Font.monospacedSystem(Layout.entry_font_size, 0),
+        .font = objc.Font.monospacedSystem(font_size, 0),
         .text_color = text_color,
         .background_color = background_color,
         .editable = editable,

@@ -145,7 +145,18 @@ const Launcher = struct {
             return;
         }
 
-        const app_index = self.matches.items[self.highlighted];
+        self.launchMatch(self.highlighted);
+    }
+
+    fn launchVisibleRow(self: *Launcher, visible_index: usize) bool {
+        const match_index = self.scroll_offset + visible_index;
+        if (match_index >= self.matches.items.len) return false;
+        self.launchMatch(match_index);
+        return true;
+    }
+
+    fn launchMatch(self: *Launcher, match_index: usize) void {
+        const app_index = self.matches.items[match_index];
         const path = self.all_apps.items[app_index].path;
         var child = std.process.spawn(self.io, .{
             .argv = &.{ "/usr/bin/open", path },
@@ -168,7 +179,7 @@ const Launcher = struct {
             const is_match = match_index < self.matches.items.len;
             if (is_match) {
                 const app = self.all_apps.items[self.matches.items[match_index]];
-                row.showApp(self.arena, app.name);
+                row.showApp(self.arena, i, app.name);
             } else {
                 row.clear(self.arena);
             }
@@ -190,6 +201,7 @@ pub fn main(init_context: std.process.Init) !void {
         .text_changed = onTextChanged,
         .move_highlight = onMoveHighlight,
         .launch_highlighted = onLaunchHighlighted,
+        .launch_visible_row = onLaunchVisibleRow,
         .dismiss = onDismiss,
     });
     launcher.buildUi();
@@ -226,6 +238,11 @@ fn onMoveHighlight(context: *anyopaque, delta: i32) void {
 fn onLaunchHighlighted(context: *anyopaque) void {
     const app_launcher: *Launcher = @ptrCast(@alignCast(context));
     app_launcher.launchHighlighted();
+}
+
+fn onLaunchVisibleRow(context: *anyopaque, visible_index: usize) bool {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    return app_launcher.launchVisibleRow(visible_index);
 }
 
 fn onDismiss(context: *anyopaque) void {
