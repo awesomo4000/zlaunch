@@ -31,6 +31,37 @@ const App = struct {
     path: []const u8,
 };
 
+const Theme = struct {
+    panel: objc.Color,
+    input: objc.Color,
+    text: objc.Color,
+    muted: objc.Color,
+    selected: objc.Color,
+    selected_text: objc.Color,
+
+    fn current(app: objc.Application) Theme {
+        if (app.isDarkMode()) {
+            return .{
+                .panel = objc.Color.rgb(0.102, 0.106, 0.118, 1.0),
+                .input = objc.Color.rgb(0.122, 0.133, 0.145, 1.0),
+                .text = objc.Color.rgb(0.760, 0.780, 0.820, 1.0),
+                .muted = objc.Color.rgb(0.420, 0.440, 0.480, 1.0),
+                .selected = objc.Color.rgb(0.155, 0.165, 0.180, 1.0),
+                .selected_text = objc.Color.rgb(0.900, 0.920, 0.940, 1.0),
+            };
+        }
+
+        return .{
+            .panel = objc.Color.rgb(0.957, 0.945, 0.918, 1.0),
+            .input = objc.Color.rgb(0.992, 0.988, 0.972, 1.0),
+            .text = objc.Color.rgb(0.180, 0.180, 0.170, 1.0),
+            .muted = objc.Color.rgb(0.580, 0.560, 0.520, 1.0),
+            .selected = objc.Color.rgb(0.922, 0.902, 0.860, 1.0),
+            .selected_text = objc.Color.rgb(0.140, 0.145, 0.150, 1.0),
+        };
+    }
+};
+
 const max_visible_rows = 8;
 
 const State = struct {
@@ -98,6 +129,7 @@ fn initApplication() void {
 
 fn buildPanel() void {
     var s = &state;
+    const theme = Theme.current(s.app);
     const panel_rect = objc.Rect{
         .origin = .{ .x = 0, .y = 0 },
         .size = .{ .width = 640, .height = 386 },
@@ -110,7 +142,7 @@ fn buildPanel() void {
     s.panel = panel;
 
     panel.setOpaque(true);
-    panel.setBackgroundColor(objc.Color.windowBackground());
+    panel.setBackgroundColor(theme.panel);
     panel.setMovableByWindowBackground(true);
     panel.setHidesOnDeactivate(true);
     panel.setLevel(.floating);
@@ -119,17 +151,17 @@ fn buildPanel() void {
     const content = panel.contentView();
     content.setWantsLayer(true);
     const layer = content.layer();
-    layer.setBackgroundColor(objc.Color.windowBackground().cgColor());
+    layer.setBackgroundColor(theme.panel.cgColor());
     layer.setCornerRadius(0);
 
-    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, 28, objc.Color.text(), objc.Color.textBackground(), true);
+    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, 28, theme.text, theme.input, true);
     s.input = input;
     input.setDelegate(s.delegate);
     content.addSubview(input);
 
     var y: objc.CGFloat = 266;
     for (0..max_visible_rows) |i| {
-        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = 38 } }, 18, objc.Color.text(), objc.Color.clear(), false);
+        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = 38 } }, 18, theme.text, objc.Color.clear(), false);
         s.rows[i] = row;
         content.addSubview(row);
         y -= 38;
@@ -141,7 +173,7 @@ fn buildPanel() void {
 fn makeTextField(rect: objc.Rect, font_size: objc.CGFloat, text_color: objc.Color, background_color: objc.Color, editable: objc.BOOL) objc.TextField {
     return objc.TextField.create(.{
         .frame = rect,
-        .font_size = font_size,
+        .font = objc.Font.monospacedSystem(font_size, 0),
         .text_color = text_color,
         .background_color = background_color,
         .editable = editable,
@@ -167,6 +199,7 @@ fn hotkeyHandler(_: EventHandlerCallRef, _: EventRef, _: ?*anyopaque) callconv(.
 fn showLauncher() void {
     var s = &state;
     resetCursor();
+    applyTheme();
     releasePreviousApp();
     s.previous_app = objc.Workspace.shared().frontmostApplication().retain();
     s.dismissing = false;
@@ -191,6 +224,15 @@ fn dismissLauncher() void {
     filter("");
     updateRows();
     restorePreviousApp();
+}
+
+fn applyTheme() void {
+    var s = &state;
+    const theme = Theme.current(s.app);
+    s.panel.setBackgroundColor(theme.panel);
+    s.panel.contentView().layer().setBackgroundColor(theme.panel.cgColor());
+    s.input.setTextColor(theme.text);
+    s.input.setBackgroundColor(theme.input);
 }
 
 fn restorePreviousApp() void {
@@ -318,10 +360,11 @@ fn launchHighlighted() void {
 
 fn updateRows() void {
     const s = &state;
-    const selected_color = objc.Color.selectedContentBackground();
-    const selected_text_color = objc.Color.alternateSelectedControlText();
+    const theme = Theme.current(s.app);
+    const selected_color = theme.selected;
+    const selected_text_color = theme.selected_text;
     const clear_color = objc.Color.clear();
-    const text_color = objc.Color.text();
+    const text_color = theme.muted;
     for (s.rows, 0..) |row, i| {
         if (row.isNil()) continue;
         const match_index = s.scroll_offset + i;

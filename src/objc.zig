@@ -102,6 +102,10 @@ pub const Object = struct {
 pub const String = struct {
     object: Object = .{},
 
+    pub fn fromStatic(text: [*:0]const u8) String {
+        return .{ .object = .wrap(msgSendIdCString(cls("NSString"), sel("stringWithUTF8String:"), text)) };
+    }
+
     pub fn fromUtf8(allocator: std.mem.Allocator, text: []const u8) String {
         const z = allocator.dupeZ(u8, text) catch unreachable;
         return .{ .object = .wrap(msgSendIdCString(cls("NSString"), sel("stringWithUTF8String:"), z.ptr)) };
@@ -109,6 +113,10 @@ pub const String = struct {
 
     pub fn utf8(self: String) [*:0]const u8 {
         return msgSendCString0(self.object.id, sel("UTF8String"));
+    }
+
+    pub fn isEqualToString(self: String, other: String) BOOL {
+        return msgSendBoolId(self.object.id, sel("isEqualToString:"), other.object.id);
     }
 };
 
@@ -172,6 +180,12 @@ pub const Font = struct {
         const f: Fn = @ptrCast(&objc_msgSend);
         return .{ .object = .wrap(f(cls("NSFont"), sel("systemFontOfSize:"), size)) };
     }
+
+    pub fn monospacedSystem(size: CGFloat, weight: CGFloat) Font {
+        const Fn = *const fn (Id, Selector, CGFloat, CGFloat) callconv(.c) Id;
+        const f: Fn = @ptrCast(&objc_msgSend);
+        return .{ .object = .wrap(f(cls("NSFont"), sel("monospacedSystemFontOfSize:weight:"), size, weight)) };
+    }
 };
 
 pub const Application = struct {
@@ -191,6 +205,16 @@ pub const Application = struct {
         msgSendVoidInt(self.object.id, sel("setActivationPolicy:"), @intFromEnum(policy));
     }
 
+    pub fn isDarkMode(self: Application) BOOL {
+        const appearance = Object.wrap(msgSendId0(self.object.id, sel("effectiveAppearance")));
+        const names = Array.withObjects(&.{
+            String.fromStatic("NSAppearanceNameDarkAqua").object,
+            String.fromStatic("NSAppearanceNameAqua").object,
+        });
+        const matched = String{ .object = .wrap(msgSendIdId(appearance.id, sel("bestMatchFromAppearancesWithNames:"), names.object.id)) };
+        return matched.isEqualToString(String.fromStatic("NSAppearanceNameDarkAqua"));
+    }
+
     pub fn activateIgnoringOtherApps(self: Application, value: BOOL) void {
         msgSendVoidBool(self.object.id, sel("activateIgnoringOtherApps:"), value);
     }
@@ -198,6 +222,23 @@ pub const Application = struct {
     pub fn run(self: Application) noreturn {
         msgSendVoid0(self.object.id, sel("run"));
         unreachable;
+    }
+};
+
+pub const Array = struct {
+    object: Object = .{},
+
+    pub fn withObjects(objects: []const Object) Array {
+        switch (objects.len) {
+            0 => return .{ .object = .wrap(msgSendId0(cls("NSArray"), sel("array"))) },
+            1 => return .{ .object = .wrap(msgSendIdId(cls("NSArray"), sel("arrayWithObject:"), objects[0].id)) },
+            2 => {
+                var ids = [_]Id{ objects[0].id, objects[1].id };
+                const allocated = Object.alloc("NSArray");
+                return .{ .object = .wrap(msgSendIdObjectBufferCount(allocated.id, sel("initWithObjects:count:"), &ids, ids.len)) };
+            },
+            else => @panic("Array.withObjects currently supports at most two objects"),
+        }
     }
 };
 
@@ -374,7 +415,7 @@ pub const TextField = struct {
 
     pub const Options = struct {
         frame: Rect,
-        font_size: CGFloat,
+        font: Font,
         text_color: Color,
         background_color: Color,
         editable: BOOL,
@@ -391,7 +432,7 @@ pub const TextField = struct {
         field.setBezeled(false);
         field.setEditable(options.editable);
         field.setSelectable(options.editable);
-        field.setFont(Font.system(options.font_size));
+        field.setFont(options.font);
         field.setTextColor(options.text_color);
         field.setBackgroundColor(options.background_color);
         field.setDrawsBackground(true);
@@ -571,6 +612,18 @@ pub fn msgSendVoidId(recv: Id, op: Selector, arg: Id) void {
 
 pub fn msgSendIdId(recv: Id, op: Selector, arg: Id) Id {
     const Fn = *const fn (Id, Selector, Id) callconv(.c) Id;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, arg);
+}
+
+pub fn msgSendIdObjectBufferCount(recv: Id, op: Selector, objects: [*]const Id, count: NSUInteger) Id {
+    const Fn = *const fn (Id, Selector, [*]const Id, NSUInteger) callconv(.c) Id;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, objects, count);
+}
+
+pub fn msgSendBoolId(recv: Id, op: Selector, arg: Id) BOOL {
+    const Fn = *const fn (Id, Selector, Id) callconv(.c) BOOL;
     const f: Fn = @ptrCast(&objc_msgSend);
     return f(recv, op, arg);
 }
