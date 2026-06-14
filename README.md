@@ -4,7 +4,7 @@
 
 # zlaunch
 
-Press a global hotkey, type part of an app name, and launch the highlighted result.
+Zlaunch is a minimal app launcher for MacOS. Press a global hotkey, type part of an app name, and launch the highlighted result with Enter or Cmd-[1..5]. Matches occur from any substring in the app name. Most common apps get sorted to the top.
 
 zlaunch discovers local `.app` bundles at startup, filters them in process, and launches selections with `/usr/bin/open`.
 
@@ -32,7 +32,7 @@ Run the launcher:
 ./zig-out/bin/zlaunch
 ```
 
-Show the launcher immediately on startup:
+Show the launcher immediately when launching the app::
 
 ```sh
 ./zig-out/bin/zlaunch --now
@@ -48,8 +48,11 @@ Show the launcher immediately on startup:
 - `tab`: autocomplete common prefix
 - `esc`: dismiss
 
-If `cmd-space` is still bound to Spotlight, macOS will keep it. Unbind Spotlight
-in System Settings before using the default hotkey.
+If `cmd-space` is still bound to Spotlight, macOS will keep it. Unbind Spotlight in System Settings before using the default hotkey. If you want it to stay running, run it from your shell with `&` to background it:
+
+`$ zlaunch & `
+
+
 
 ## Config
 
@@ -68,9 +71,7 @@ Default config:
 }
 ```
 
-Supported modifier names include `cmd`, `command`, `apple`, `shift`, `option`,
-`alt`, `ctrl`, and `control`. Supported keys are letters, digits, `space`,
-`tab`, `enter`/`return`, and `esc`/`escape`.
+Supported modifier names include `cmd`, `command`, `apple`, `shift`, `option`,`alt`, `ctrl`, and `control`. Supported keys are letters, digits, `space`,`tab`, `enter`/`return`, and `esc`/`escape`.
 
 Example:
 
@@ -80,6 +81,8 @@ Example:
   "hotkey": "ctrl-option-m"
 }
 ```
+
+Application launch counts for sorting are in `~/.config/zlaunch/stats.json` and record app name and launch count. This is read at start of zlaunch and used for sort ordering so most common apps appear at the top.
 
 ## App Discovery
 
