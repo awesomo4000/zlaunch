@@ -30,12 +30,20 @@ pub const Range = extern struct {
     length: NSUInteger,
 };
 
+const Super = extern struct {
+    receiver: Id,
+    super_class: Class,
+};
+
 extern "c" fn objc_getClass(name: [*:0]const u8) Class;
 extern "c" fn objc_allocateClassPair(superclass: Class, name: [*:0]const u8, extra_bytes: usize) Class;
 extern "c" fn objc_registerClassPair(class: Class) void;
 extern "c" fn sel_registerName(name: [*:0]const u8) Selector;
 extern "c" fn class_addMethod(class: Class, name: Selector, imp: IMP, types: [*:0]const u8) bool;
 extern "c" fn objc_msgSend() void;
+extern "c" fn objc_msgSendSuper() void;
+
+var text_field_cell_class_registered = false;
 
 pub fn cls(name: [*:0]const u8) Class {
     return objc_getClass(name);
@@ -320,8 +328,11 @@ pub const TextField = struct {
     };
 
     pub fn create(options: Options) TextField {
+        ensureTextFieldCellClass();
+
         const allocated = Object.alloc("NSTextField");
         const field = TextField{ .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)) };
+        field.setCell(createTextFieldCell());
         field.setBordered(false);
         field.setBezeled(false);
         field.setEditable(options.editable);
@@ -387,10 +398,80 @@ pub const TextField = struct {
         msgSendVoidBool(self.object.id, sel("setWantsLayer:"), value);
     }
 
+    fn setCell(self: TextField, cell: Object) void {
+        msgSendVoidId(self.object.id, sel("setCell:"), cell.id);
+    }
+
     fn layer(self: TextField) Layer {
         return .{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
     }
 };
+
+fn ensureTextFieldCellClass() void {
+    if (text_field_cell_class_registered) return;
+    text_field_cell_class_registered = true;
+
+    const class = allocateClassPair(cls("NSTextFieldCell"), "ZLPaddedTextFieldCell");
+    if (class != null) {
+        const rect_types = "{CGRect={CGPoint=dd}{CGSize=dd}}@:{CGRect={CGPoint=dd}{CGSize=dd}}";
+        _ = addMethod(class, sel("drawingRectForBounds:"), &paddedTextRect, rect_types);
+        _ = addMethod(class, sel("titleRectForBounds:"), &paddedTextRect, rect_types);
+        _ = addMethod(class, sel("editWithFrame:inView:editor:delegate:event:"), &editWithPaddedFrame, "v@:{CGRect={CGPoint=dd}{CGSize=dd}}@@@@");
+        _ = addMethod(class, sel("selectWithFrame:inView:editor:delegate:start:length:"), &selectWithPaddedFrame, "v@:{CGRect={CGPoint=dd}{CGSize=dd}}@@@QQ");
+        registerClassPair(class);
+    }
+}
+
+fn createTextFieldCell() Object {
+    const allocated = Object.alloc("ZLPaddedTextFieldCell");
+    const empty = Object.wrap(msgSendIdCString(cls("NSString"), sel("stringWithUTF8String:"), ""));
+    return .wrap(msgSendIdId(allocated.id, sel("initTextCell:"), empty.id));
+}
+
+fn paddedTextRect(self: Id, _: Selector, bounds: Rect) callconv(.c) Rect {
+    return textRect(self, bounds);
+}
+
+fn textRect(self: Id, bounds: Rect) Rect {
+    const padding: CGFloat = 10;
+    var rect = bounds;
+    rect.origin.x += padding;
+    rect.size.width = @max(@as(CGFloat, 0), rect.size.width - padding * 2);
+
+    const font = msgSendId0(self, sel("font"));
+    const line_height = if (font == null) @as(CGFloat, 17) else msgSendCGFloat0(font, sel("defaultLineHeightForFont"));
+    const inset = @max(@as(CGFloat, 0), (bounds.size.height - line_height) / 2);
+    rect.origin.y += inset;
+    rect.size.height = line_height;
+    return rect;
+}
+
+fn editWithPaddedFrame(self: Id, _: Selector, frame: Rect, control_view: Id, editor: Id, delegate: Id, event: Id) callconv(.c) void {
+    msgSendSuperVoidRectIdIdIdId(
+        self,
+        cls("NSTextFieldCell"),
+        sel("editWithFrame:inView:editor:delegate:event:"),
+        textRect(self, frame),
+        control_view,
+        editor,
+        delegate,
+        event,
+    );
+}
+
+fn selectWithPaddedFrame(self: Id, _: Selector, frame: Rect, control_view: Id, editor: Id, delegate: Id, start: NSUInteger, length: NSUInteger) callconv(.c) void {
+    msgSendSuperVoidRectIdIdIdUIntegerUInteger(
+        self,
+        cls("NSTextFieldCell"),
+        sel("selectWithFrame:inView:editor:delegate:start:length:"),
+        textRect(self, frame),
+        control_view,
+        editor,
+        delegate,
+        start,
+        length,
+    );
+}
 
 pub const Screen = struct {
     object: Object = .{},
@@ -434,6 +515,12 @@ pub fn msgSendVoidId(recv: Id, op: Selector, arg: Id) void {
     f(recv, op, arg);
 }
 
+pub fn msgSendIdId(recv: Id, op: Selector, arg: Id) Id {
+    const Fn = *const fn (Id, Selector, Id) callconv(.c) Id;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, arg);
+}
+
 pub fn msgSendVoidBool(recv: Id, op: Selector, arg: BOOL) void {
     const Fn = *const fn (Id, Selector, BOOL) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
@@ -446,10 +533,30 @@ pub fn msgSendVoidInt(recv: Id, op: Selector, arg: NSInteger) void {
     f(recv, op, arg);
 }
 
+pub fn msgSendCGFloat0(recv: Id, op: Selector) CGFloat {
+    const Fn = *const fn (Id, Selector) callconv(.c) CGFloat;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op);
+}
+
 pub fn msgSendVoidPoint(recv: Id, op: Selector, point: Point) void {
     const Fn = *const fn (Id, Selector, Point) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
     f(recv, op, point);
+}
+
+pub fn msgSendSuperVoidRectIdIdIdId(recv: Id, superclass: Class, op: Selector, rect: Rect, arg1: Id, arg2: Id, arg3: Id, arg4: Id) void {
+    var super = Super{ .receiver = recv, .super_class = superclass };
+    const Fn = *const fn (*Super, Selector, Rect, Id, Id, Id, Id) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSendSuper);
+    f(&super, op, rect, arg1, arg2, arg3, arg4);
+}
+
+pub fn msgSendSuperVoidRectIdIdIdUIntegerUInteger(recv: Id, superclass: Class, op: Selector, rect: Rect, arg1: Id, arg2: Id, arg3: Id, arg4: NSUInteger, arg5: NSUInteger) void {
+    var super = Super{ .receiver = recv, .super_class = superclass };
+    const Fn = *const fn (*Super, Selector, Rect, Id, Id, Id, NSUInteger, NSUInteger) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSendSuper);
+    f(&super, op, rect, arg1, arg2, arg3, arg4, arg5);
 }
 
 pub fn msgSendIdCString(recv: Id, op: Selector, arg: [*:0]const u8) Id {
