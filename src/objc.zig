@@ -403,6 +403,16 @@ pub const Layer = struct {
         msgSendVoidId(self.object.id, sel("setBackgroundColor:"), color.id);
     }
 
+    pub fn setBorderColor(self: Layer, color: Object) void {
+        msgSendVoidId(self.object.id, sel("setBorderColor:"), color.id);
+    }
+
+    pub fn setBorderWidth(self: Layer, width: CGFloat) void {
+        const Fn = *const fn (Id, Selector, CGFloat) callconv(.c) void;
+        const f: Fn = @ptrCast(&objc_msgSend);
+        f(self.object.id, sel("setBorderWidth:"), width);
+    }
+
     pub fn setCornerRadius(self: Layer, radius: CGFloat) void {
         const Fn = *const fn (Id, Selector, CGFloat) callconv(.c) void;
         const f: Fn = @ptrCast(&objc_msgSend);
@@ -433,11 +443,12 @@ pub const TextField = struct {
         field.setEditable(options.editable);
         field.setSelectable(options.editable);
         field.setFont(options.font);
+        field.setFocusRingType(.none);
         field.setTextColor(options.text_color);
-        field.setBackgroundColor(options.background_color);
-        field.setDrawsBackground(true);
+        field.setDrawsBackground(false);
         field.setWantsLayer(true);
         field.layer().setCornerRadius(options.corner_radius);
+        field.setFillColor(options.background_color);
         return field;
     }
 
@@ -461,8 +472,18 @@ pub const TextField = struct {
         msgSendVoidId(self.object.id, sel("setBackgroundColor:"), color.object.id);
     }
 
+    pub fn setFillColor(self: TextField, color: Color) void {
+        self.layer().setBackgroundColor(color.cgColor());
+    }
+
     pub fn setTextColor(self: TextField, color: Color) void {
         msgSendVoidId(self.object.id, sel("setTextColor:"), color.object.id);
+    }
+
+    pub fn setBorder(self: TextField, width: CGFloat, color: Color) void {
+        const field_layer = self.layer();
+        field_layer.setBorderWidth(width);
+        field_layer.setBorderColor(color.cgColor());
     }
 
     fn setBordered(self: TextField, value: BOOL) void {
@@ -479,6 +500,16 @@ pub const TextField = struct {
 
     fn setSelectable(self: TextField, value: BOOL) void {
         msgSendVoidBool(self.object.id, sel("setSelectable:"), value);
+    }
+
+    const FocusRingType = enum(NSUInteger) {
+        default = 0,
+        none = 1,
+        exterior = 2,
+    };
+
+    fn setFocusRingType(self: TextField, value: FocusRingType) void {
+        msgSendVoidUInteger(self.object.id, sel("setFocusRingType:"), @intFromEnum(value));
     }
 
     fn setFont(self: TextField, font: Font) void {
@@ -636,6 +667,12 @@ pub fn msgSendVoidBool(recv: Id, op: Selector, arg: BOOL) void {
 
 pub fn msgSendVoidInt(recv: Id, op: Selector, arg: NSInteger) void {
     const Fn = *const fn (Id, Selector, NSInteger) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    f(recv, op, arg);
+}
+
+pub fn msgSendVoidUInteger(recv: Id, op: Selector, arg: NSUInteger) void {
+    const Fn = *const fn (Id, Selector, NSUInteger) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
     f(recv, op, arg);
 }

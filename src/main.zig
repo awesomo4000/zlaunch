@@ -38,6 +38,7 @@ const Theme = struct {
     muted: objc.Color,
     selected: objc.Color,
     selected_text: objc.Color,
+    accent: objc.Color,
 
     fn current(app: objc.Application) Theme {
         if (app.isDarkMode()) {
@@ -48,6 +49,7 @@ const Theme = struct {
                 .muted = objc.Color.rgb(0.420, 0.440, 0.480, 1.0),
                 .selected = objc.Color.rgb(0.155, 0.165, 0.180, 1.0),
                 .selected_text = objc.Color.rgb(0.900, 0.920, 0.940, 1.0),
+                .accent = objc.Color.rgb(0.180, 0.435, 0.557, 1.0),
             };
         }
 
@@ -58,11 +60,15 @@ const Theme = struct {
             .muted = objc.Color.rgb(0.580, 0.560, 0.520, 1.0),
             .selected = objc.Color.rgb(0.922, 0.902, 0.860, 1.0),
             .selected_text = objc.Color.rgb(0.140, 0.145, 0.150, 1.0),
+            .accent = objc.Color.rgb(0.180, 0.435, 0.557, 1.0),
         };
     }
 };
 
 const max_visible_rows = 8;
+const entry_font_size: objc.CGFloat = 18;
+const row_height: objc.CGFloat = 46;
+const row_gap: objc.CGFloat = 0;
 
 const State = struct {
     arena: std.mem.Allocator,
@@ -154,17 +160,18 @@ fn buildPanel() void {
     layer.setBackgroundColor(theme.panel.cgColor());
     layer.setCornerRadius(0);
 
-    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, 28, theme.text, theme.input, true);
+    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, entry_font_size, theme.text, theme.input, true);
     s.input = input;
+    input.setBorder(1.5, theme.accent);
     input.setDelegate(s.delegate);
     content.addSubview(input);
 
-    var y: objc.CGFloat = 266;
+    var y: objc.CGFloat = 250;
     for (0..max_visible_rows) |i| {
-        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = 38 } }, 18, theme.text, objc.Color.clear(), false);
+        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = row_height } }, entry_font_size, theme.text, objc.Color.clear(), false);
         s.rows[i] = row;
         content.addSubview(row);
-        y -= 38;
+        y -= row_height + row_gap;
     }
 
     updateRows();
@@ -232,7 +239,8 @@ fn applyTheme() void {
     s.panel.setBackgroundColor(theme.panel);
     s.panel.contentView().layer().setBackgroundColor(theme.panel.cgColor());
     s.input.setTextColor(theme.text);
-    s.input.setBackgroundColor(theme.input);
+    s.input.setFillColor(theme.input);
+    s.input.setBorder(1.5, theme.accent);
 }
 
 fn restorePreviousApp() void {
@@ -375,10 +383,10 @@ fn updateRows() void {
             row.setStringValue(objc.String.fromUtf8(s.arena, ""));
         }
         if (match_index == s.highlighted and match_index < s.matches.items.len) {
-            row.setBackgroundColor(selected_color);
+            row.setFillColor(selected_color);
             row.setTextColor(selected_text_color);
         } else {
-            row.setBackgroundColor(clear_color);
+            row.setFillColor(clear_color);
             row.setTextColor(text_color);
         }
     }
