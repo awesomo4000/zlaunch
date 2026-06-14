@@ -1,5 +1,7 @@
 const objc = @import("objc.zig");
 
+const command_modifier: objc.NSUInteger = 1 << 20;
+
 pub const Handler = struct {
     context: *anyopaque,
     text_changed: *const fn (*anyopaque) void,
@@ -57,6 +59,7 @@ fn registerPanelClass() void {
     if (class != null) {
         _ = objc.addMethod(class, objc.sel("canBecomeKeyWindow"), &returnYes, "B@:");
         _ = objc.addMethod(class, objc.sel("canBecomeMainWindow"), &returnYes, "B@:");
+        _ = objc.addMethod(class, objc.sel("performKeyEquivalent:"), &panelPerformKeyEquivalent, "c@:@");
         objc.registerClassPair(class);
     }
 }
@@ -77,7 +80,6 @@ fn registerDelegateClass() objc.Object {
     const class = objc.allocateClassPair(objc.cls("NSObject"), "ZLDelegate");
     if (class != null) {
         _ = objc.addMethod(class, objc.sel("controlTextDidChange:"), &controlTextDidChange, "v@:@");
-        _ = objc.addMethod(class, objc.sel("control:textView:shouldChangeCharactersInRange:replacementString:"), &shouldChangeText, "c@:@@{_NSRange=QQ}@");
         _ = objc.addMethod(class, objc.sel("control:textView:doCommandBySelector:"), &doCommandBySelector, "c@:@@:");
         _ = objc.addMethod(class, objc.sel("windowDidResignKey:"), &windowDidResignKey, "v@:@");
         objc.registerClassPair(class);
@@ -87,10 +89,6 @@ fn registerDelegateClass() objc.Object {
 
 fn controlTextDidChange(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) void {
     handler.text_changed(handler.context);
-}
-
-fn shouldChangeText(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, _: objc.Range, replacement: objc.Id) callconv(.c) objc.BOOL {
-    return !tryLaunchNumber(replacement);
 }
 
 fn doCommandBySelector(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, selector: objc.Selector) callconv(.c) objc.BOOL {
@@ -108,16 +106,24 @@ fn windowDidResignKey(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) voi
     handler.dismiss(handler.context);
 }
 
+fn panelPerformKeyEquivalent(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) objc.BOOL {
+    if (tryLaunchNumberEvent(event)) return true;
+    return objc.msgSendSuperBoolId(self, objc.cls("NSPanel"), objc.sel("performKeyEquivalent:"), event);
+}
+
 fn inputKeyDown(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) void {
-    const characters = objc.msgSendId0(event, objc.sel("charactersIgnoringModifiers"));
-    if (tryLaunchNumber(characters)) return;
+    if (tryLaunchNumberEvent(event)) return;
 
     objc.msgSendSuperVoidId(self, objc.cls("NSTextField"), objc.sel("keyDown:"), event);
 }
 
-fn tryLaunchNumber(characters_id: objc.Id) bool {
-    if (characters_id == null) return false;
+fn tryLaunchNumberEvent(event: objc.Id) bool {
+    if (event == null) return false;
+    const flags = objc.msgSendUInteger0(event, objc.sel("modifierFlags"));
+    if (flags & command_modifier == 0) return false;
 
+    const characters_id = objc.msgSendId0(event, objc.sel("charactersIgnoringModifiers"));
+    if (characters_id == null) return false;
     const characters = objc.String{ .object = .wrap(characters_id) };
     if (characters.length() == 1) {
         const character = characters.characterAtIndex(0);

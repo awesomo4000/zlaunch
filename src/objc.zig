@@ -766,6 +766,13 @@ pub fn msgSendSuperVoidId(recv: Id, superclass: Class, op: Selector, arg: Id) vo
     f(&super, op, arg);
 }
 
+pub fn msgSendSuperBoolId(recv: Id, superclass: Class, op: Selector, arg: Id) BOOL {
+    var super = Super{ .receiver = recv, .super_class = superclass };
+    const Fn = *const fn (*Super, Selector, Id) callconv(.c) BOOL;
+    const f: Fn = @ptrCast(&objc_msgSendSuper);
+    return f(&super, op, arg);
+}
+
 pub fn msgSendIdCString(recv: Id, op: Selector, arg: [*:0]const u8) Id {
     const Fn = *const fn (Id, Selector, [*:0]const u8) callconv(.c) Id;
     const f: Fn = @ptrCast(&objc_msgSend);
