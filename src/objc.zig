@@ -383,11 +383,16 @@ pub const Panel = struct {
 pub const View = struct {
     object: Object = .{},
 
-    pub fn create(frame: Rect, background_color: Color) View {
+    pub const Options = struct {
+        frame: Rect,
+        background_color: Color,
+    };
+
+    pub fn create(options: Options) View {
         const allocated = Object.alloc("NSView");
-        const view = View{ .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), frame)) };
+        const view = View{ .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)) };
         view.setWantsLayer(true);
-        view.setFillColor(background_color);
+        view.setFillColor(options.background_color);
         return view;
     }
 
@@ -433,6 +438,10 @@ pub const Layer = struct {
         const Fn = *const fn (Id, Selector, CGFloat) callconv(.c) void;
         const f: Fn = @ptrCast(&objc_msgSend);
         f(self.object.id, sel("setCornerRadius:"), radius);
+    }
+
+    pub fn setMasksToBounds(self: Layer, value: BOOL) void {
+        msgSendVoidBool(self.object.id, sel("setMasksToBounds:"), value);
     }
 };
 
@@ -500,6 +509,10 @@ pub const TextField = struct {
         const field_layer = self.layer();
         field_layer.setBorderWidth(width);
         field_layer.setBorderColor(color.cgColor());
+    }
+
+    pub fn setCornerRadius(self: TextField, radius: CGFloat) void {
+        self.layer().setCornerRadius(radius);
     }
 
     fn setBordered(self: TextField, value: BOOL) void {

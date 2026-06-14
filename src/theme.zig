@@ -7,6 +7,7 @@ pub const Theme = struct {
     muted: objc.Color,
     selected: objc.Color,
     selected_text: objc.Color,
+    divider: objc.Color,
     accent: objc.Color,
 
     pub fn current(app: objc.Application) Theme {
@@ -18,6 +19,7 @@ pub const Theme = struct {
                 .muted = hexColor(Palette.Dark.quiet_ink),
                 .selected = hexColor(Palette.Dark.selected_band),
                 .selected_text = hexColor(Palette.Dark.selected_ink),
+                .divider = hexColor(Palette.Dark.divider),
                 .accent = hexColor(Palette.steel_cyan),
             };
         }
@@ -29,6 +31,7 @@ pub const Theme = struct {
             .muted = hexColor(Palette.Light.quiet_ink),
             .selected = hexColor(Palette.Light.selected_band),
             .selected_text = hexColor(Palette.Light.selected_ink),
+            .divider = hexColor(Palette.Light.divider),
             .accent = hexColor(Palette.steel_cyan),
         };
     }
@@ -51,6 +54,7 @@ const Palette = struct {
         const quiet_ink = 0x948f85;
         const selected_band = 0xebe6db;
         const selected_ink = 0x242527;
+        const divider = 0xd8d2c4;
     };
 
     const Dark = struct {
@@ -60,5 +64,6 @@ const Palette = struct {
         const quiet_ink = 0x6b707a;
         const selected_band = 0x282a2e;
         const selected_ink = 0xe6ebf0;
+        const divider = 0x34373c;
     };
 };

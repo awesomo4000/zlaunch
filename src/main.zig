@@ -1,21 +1,10 @@
 const std = @import("std");
 const apps = @import("apps.zig");
+const callbacks = @import("callbacks.zig");
 const hotkey = @import("hotkey.zig");
 const objc = @import("objc.zig");
 const theme = @import("theme.zig");
-
-const Layout = struct {
-    const panel_width: objc.CGFloat = 640;
-    const panel_height: objc.CGFloat = 340;
-    const margin: objc.CGFloat = 20;
-    const input_height: objc.CGFloat = 50;
-    const entry_font_size: objc.CGFloat = 18;
-    const row_height: objc.CGFloat = 46;
-    const selected_bar_width: objc.CGFloat = 2;
-    const visible_rows = 5;
-    const input_y: objc.CGFloat = panel_height - margin - input_height;
-    const row_start_y: objc.CGFloat = input_y - margin - row_height;
-};
+const ui = @import("ui.zig");
 
 const DismissBehavior = enum {
     return_to_previous_app,
@@ -24,22 +13,6 @@ const DismissBehavior = enum {
 
 const CliOptions = struct {
     show_now: bool = false,
-};
-
-const CommandSelectors = struct {
-    move_up: objc.Selector,
-    move_down: objc.Selector,
-    insert_newline: objc.Selector,
-    cancel_operation: objc.Selector,
-
-    fn init() CommandSelectors {
-        return .{
-            .move_up = objc.sel("moveUp:"),
-            .move_down = objc.sel("moveDown:"),
-            .insert_newline = objc.sel("insertNewline:"),
-            .cancel_operation = objc.sel("cancelOperation:"),
-        };
-    }
 };
 
 const Launcher = struct {
@@ -53,8 +26,8 @@ const Launcher = struct {
     app: objc.Application = .{},
     panel: objc.Panel = .{},
     input: objc.TextField = .{},
-    rows: [Layout.visible_rows]objc.TextField = [_]objc.TextField{.{}} ** Layout.visible_rows,
-    selected_bars: [Layout.visible_rows]objc.View = [_]objc.View{.{}} ** Layout.visible_rows,
+    rows: ui.Rows = [_]ui.Row{.{}} ** ui.Layout.visible_rows,
+    divider: objc.View = .{},
     delegate: objc.Object = .{},
     previous_app: objc.RunningApplication = .{},
     dismissing: bool = false,
@@ -73,53 +46,11 @@ const Launcher = struct {
     }
 
     fn buildUi(self: *Launcher) void {
-        const colors = theme.Theme.current(self.app);
-        self.panel = objc.Panel.create(.{
-            .class_name = "ZLPanel",
-            .content_rect = .{
-                .origin = .{ .x = 0, .y = 0 },
-                .size = .{ .width = Layout.panel_width, .height = Layout.panel_height },
-            },
-            .style = .{ .nonactivating = true },
-        });
-
-        self.panel.setOpaque(true);
-        self.panel.setBackgroundColor(colors.panel);
-        self.panel.setMovableByWindowBackground(true);
-        self.panel.setHidesOnDeactivate(true);
-        self.panel.setLevel(.floating);
-        self.panel.setDelegate(self.delegate);
-
-        const content = self.panel.contentView();
-        content.setWantsLayer(true);
-        content.layer().setBackgroundColor(colors.panel.cgColor());
-        content.layer().setCornerRadius(0);
-
-        self.input = makeTextField(.{
-            .origin = .{ .x = Layout.margin, .y = Layout.input_y },
-            .size = .{ .width = Layout.panel_width - Layout.margin * 2, .height = Layout.input_height },
-        }, colors.text, colors.input, true);
-        self.input.setBorder(1.5, colors.accent);
-        self.input.setDelegate(self.delegate);
-        content.addSubview(self.input);
-
-        var y: objc.CGFloat = Layout.row_start_y;
-        for (&self.rows, &self.selected_bars) |*row, *selected_bar| {
-            row.* = makeTextField(.{
-                .origin = .{ .x = Layout.margin, .y = y },
-                .size = .{ .width = Layout.panel_width - Layout.margin * 2, .height = Layout.row_height },
-            }, colors.text, objc.Color.clear(), false);
-            content.addSubview(row.*);
-
-            selected_bar.* = objc.View.create(.{
-                .origin = .{ .x = Layout.margin, .y = y },
-                .size = .{ .width = Layout.selected_bar_width, .height = Layout.row_height },
-            }, colors.accent);
-            selected_bar.setHidden(true);
-            content.addSubview(selected_bar.*);
-
-            y -= Layout.row_height;
-        }
+        const elements = ui.build(self.app, self.delegate);
+        self.panel = elements.panel;
+        self.input = elements.input;
+        self.rows = elements.rows;
+        self.divider = elements.divider;
     }
 
     fn show(self: *Launcher) void {
@@ -155,15 +86,7 @@ const Launcher = struct {
     }
 
     fn applyTheme(self: *Launcher) void {
-        const colors = theme.Theme.current(self.app);
-        self.panel.setBackgroundColor(colors.panel);
-        self.panel.contentView().layer().setBackgroundColor(colors.panel.cgColor());
-        self.input.setTextColor(colors.text);
-        self.input.setFillColor(colors.input);
-        self.input.setBorder(1.5, colors.accent);
-        for (self.selected_bars) |selected_bar| {
-            selected_bar.setFillColor(colors.accent);
-        }
+        ui.applyTheme(self.app, self.panel, self.input, self.rows, self.divider);
     }
 
     fn restorePreviousApp(self: *Launcher) void {
@@ -181,11 +104,7 @@ const Launcher = struct {
     }
 
     fn positionPanel(self: *Launcher) void {
-        const frame = objc.Screen.main().visibleFrame();
-        self.panel.setFrameOrigin(.{
-            .x = frame.origin.x + (frame.size.width - Layout.panel_width) / 2,
-            .y = frame.origin.y + frame.size.height * 0.62 - Layout.panel_height / 2,
-        });
+        ui.positionPanel(self.panel);
     }
 
     fn setQueryFromInput(self: *Launcher) void {
@@ -200,8 +119,7 @@ const Launcher = struct {
         self.scroll_offset = 0;
 
         var lower_buf: [256]u8 = undefined;
-        const n = @min(query.len, lower_buf.len);
-        const lowered = std.ascii.lowerString(lower_buf[0..n], query[0..n]);
+        const lowered = lowerTrimmedQuery(query, &lower_buf);
         self.query.appendSlice(self.arena, lowered) catch return;
         apps.filter(self.arena, self.all_apps.items, lowered, &self.matches);
     }
@@ -218,7 +136,7 @@ const Launcher = struct {
     }
 
     fn keepHighlightVisible(self: *Launcher) void {
-        self.scroll_offset = scrollOffsetForHighlight(self.highlighted, self.scroll_offset, Layout.visible_rows);
+        self.scroll_offset = scrollOffsetForHighlight(self.highlighted, self.scroll_offset, ui.Layout.visible_rows);
     }
 
     fn launchHighlighted(self: *Launcher) void {
@@ -244,56 +162,41 @@ const Launcher = struct {
 
     fn updateRows(self: *Launcher) void {
         const colors = theme.Theme.current(self.app);
-        for (self.rows, self.selected_bars, 0..) |row, selected_bar, i| {
-            if (row.isNil()) continue;
+        for (self.rows, 0..) |row, i| {
+            if (row.isEmpty()) continue;
             const match_index = self.scroll_offset + i;
             const is_match = match_index < self.matches.items.len;
-            if (match_index < self.matches.items.len) {
+            if (is_match) {
                 const app = self.all_apps.items[self.matches.items[match_index]];
-                row.setStringValue(objc.String.fromUtf8(self.arena, app.name));
+                row.showApp(self.arena, app.name);
             } else {
-                row.setStringValue(objc.String.fromUtf8(self.arena, ""));
+                row.clear(self.arena);
             }
 
-            if (match_index == self.highlighted and is_match) {
-                row.setFillColor(colors.selected);
-                row.setTextColor(colors.selected_text);
-                selected_bar.setHidden(false);
-            } else {
-                row.setFillColor(objc.Color.clear());
-                row.setTextColor(colors.muted);
-                selected_bar.setHidden(true);
-            }
+            row.setSelected(match_index == self.highlighted and is_match, colors);
         }
     }
 };
 
 var launcher: Launcher = undefined;
-var command_selectors: CommandSelectors = undefined;
 
 pub fn main(init_context: std.process.Init) !void {
     const options = try parseArgs(init_context);
     launcher = try Launcher.init(init_context);
     launcher.filter("");
 
-    registerPanelClass();
-    registerDelegateClass();
-    command_selectors = .init();
+    launcher.delegate = callbacks.install(.{
+        .context = &launcher,
+        .text_changed = onTextChanged,
+        .move_highlight = onMoveHighlight,
+        .launch_highlighted = onLaunchHighlighted,
+        .dismiss = onDismiss,
+    });
     launcher.buildUi();
     hotkey.register(hotkeyHandler);
 
     if (options.show_now) launcher.show();
     launcher.app.run();
-}
-
-fn makeTextField(rect: objc.Rect, text_color: objc.Color, background_color: objc.Color, editable: objc.BOOL) objc.TextField {
-    return objc.TextField.create(.{
-        .frame = rect,
-        .font = objc.Font.monospacedSystem(Layout.entry_font_size, 0),
-        .text_color = text_color,
-        .background_color = background_color,
-        .editable = editable,
-    });
 }
 
 fn parseArgs(init_context: std.process.Init) !CliOptions {
@@ -310,56 +213,24 @@ fn hotkeyHandler(_: hotkey.EventHandlerCallRef, _: hotkey.EventRef, _: ?*anyopaq
     return 0;
 }
 
-fn registerPanelClass() void {
-    const class = objc.allocateClassPair(objc.cls("NSPanel"), "ZLPanel");
-    if (class != null) {
-        _ = objc.addMethod(class, objc.sel("canBecomeKeyWindow"), &returnYes, "B@:");
-        _ = objc.addMethod(class, objc.sel("canBecomeMainWindow"), &returnYes, "B@:");
-        objc.registerClassPair(class);
-    }
+fn onTextChanged(context: *anyopaque) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.setQueryFromInput();
 }
 
-fn returnYes(_: objc.Id, _: objc.Selector) callconv(.c) objc.BOOL {
-    return true;
+fn onMoveHighlight(context: *anyopaque, delta: i32) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.moveHighlight(delta);
 }
 
-fn registerDelegateClass() void {
-    const class = objc.allocateClassPair(objc.cls("NSObject"), "ZLDelegate");
-    if (class != null) {
-        _ = objc.addMethod(class, objc.sel("controlTextDidChange:"), &controlTextDidChange, "v@:@");
-        _ = objc.addMethod(class, objc.sel("control:textView:doCommandBySelector:"), &doCommandBySelector, "c@:@@:");
-        _ = objc.addMethod(class, objc.sel("windowDidResignKey:"), &windowDidResignKey, "v@:@");
-        objc.registerClassPair(class);
-    }
-    launcher.delegate = objc.Object.new("ZLDelegate");
+fn onLaunchHighlighted(context: *anyopaque) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.launchHighlighted();
 }
 
-fn controlTextDidChange(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) void {
-    launcher.setQueryFromInput();
-}
-
-fn doCommandBySelector(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, command: objc.Selector) callconv(.c) objc.BOOL {
-    if (command == command_selectors.move_up) {
-        launcher.moveHighlight(-1);
-        return true;
-    }
-    if (command == command_selectors.move_down) {
-        launcher.moveHighlight(1);
-        return true;
-    }
-    if (command == command_selectors.insert_newline) {
-        launcher.launchHighlighted();
-        return true;
-    }
-    if (command == command_selectors.cancel_operation) {
-        launcher.dismiss(.return_to_previous_app);
-        return true;
-    }
-    return false;
-}
-
-fn windowDidResignKey(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) void {
-    launcher.dismiss(.return_to_previous_app);
+fn onDismiss(context: *anyopaque) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.dismiss(.return_to_previous_app);
 }
 
 fn scrollOffsetForHighlight(highlighted: usize, scroll_offset: usize, visible_rows: usize) usize {
@@ -370,6 +241,12 @@ fn scrollOffsetForHighlight(highlighted: usize, scroll_offset: usize, visible_ro
     return scroll_offset;
 }
 
+fn lowerTrimmedQuery(query: []const u8, buffer: []u8) []const u8 {
+    const trimmed = std.mem.trim(u8, query, " \t\r\n");
+    const n = @min(trimmed.len, buffer.len);
+    return std.ascii.lowerString(buffer[0..n], trimmed[0..n]);
+}
+
 test "scroll offset advances after the fifth visible item" {
     try std.testing.expectEqual(@as(usize, 0), scrollOffsetForHighlight(4, 0, 5));
     try std.testing.expectEqual(@as(usize, 1), scrollOffsetForHighlight(5, 0, 5));
@@ -378,4 +255,11 @@ test "scroll offset advances after the fifth visible item" {
 
 test "scroll offset moves back when highlight goes above the visible window" {
     try std.testing.expectEqual(@as(usize, 2), scrollOffsetForHighlight(2, 4, 5));
+}
+
+test "query matching ignores surrounding whitespace" {
+    var buffer: [256]u8 = undefined;
+    try std.testing.expectEqualStrings("calculator", lowerTrimmedQuery("Calculator   ", &buffer));
+    try std.testing.expectEqualStrings("messages", lowerTrimmedQuery("   Messages", &buffer));
+    try std.testing.expectEqualStrings("mail", lowerTrimmedQuery("  Mail   ", &buffer));
 }
