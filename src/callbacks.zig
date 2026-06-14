@@ -8,6 +8,7 @@ pub const Handler = struct {
     move_highlight: *const fn (*anyopaque, i32) void,
     launch_highlighted: *const fn (*anyopaque) void,
     launch_visible_row: *const fn (*anyopaque, usize) bool,
+    autocomplete: *const fn (*anyopaque) void,
     dismiss: *const fn (*anyopaque) void,
 };
 
@@ -15,6 +16,7 @@ const Command = enum {
     move_up,
     move_down,
     insert_newline,
+    insert_tab,
     cancel_operation,
     unhandled,
 };
@@ -23,6 +25,7 @@ const CommandSelectors = struct {
     move_up: objc.Selector,
     move_down: objc.Selector,
     insert_newline: objc.Selector,
+    insert_tab: objc.Selector,
     cancel_operation: objc.Selector,
 
     fn init() CommandSelectors {
@@ -30,6 +33,7 @@ const CommandSelectors = struct {
             .move_up = objc.sel("moveUp:"),
             .move_down = objc.sel("moveDown:"),
             .insert_newline = objc.sel("insertNewline:"),
+            .insert_tab = objc.sel("insertTab:"),
             .cancel_operation = objc.sel("cancelOperation:"),
         };
     }
@@ -38,6 +42,7 @@ const CommandSelectors = struct {
         if (selector == self.move_up) return .move_up;
         if (selector == self.move_down) return .move_down;
         if (selector == self.insert_newline) return .insert_newline;
+        if (selector == self.insert_tab) return .insert_tab;
         if (selector == self.cancel_operation) return .cancel_operation;
         return .unhandled;
     }
@@ -96,6 +101,7 @@ fn doCommandBySelector(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, sel
         .move_up => handler.move_highlight(handler.context, -1),
         .move_down => handler.move_highlight(handler.context, 1),
         .insert_newline => handler.launch_highlighted(handler.context),
+        .insert_tab => handler.autocomplete(handler.context),
         .cancel_operation => handler.dismiss(handler.context),
         .unhandled => return false,
     }

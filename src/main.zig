@@ -171,6 +171,15 @@ const Launcher = struct {
         self.dismiss(.leave_launched_app_active);
     }
 
+    fn autocomplete(self: *Launcher) void {
+        const completion = longestCommonAppPrefix(self.all_apps.items, self.matches.items) orelse return;
+        if (completion.len <= self.query.items.len) return;
+
+        self.input.setStringValue(objc.String.fromUtf8(self.arena, completion));
+        self.filter(completion);
+        self.updateRows();
+    }
+
     fn updateRows(self: *Launcher) void {
         const colors = theme.Theme.current(self.app);
         for (self.rows, 0..) |row, i| {
@@ -202,6 +211,7 @@ pub fn main(init_context: std.process.Init) !void {
         .move_highlight = onMoveHighlight,
         .launch_highlighted = onLaunchHighlighted,
         .launch_visible_row = onLaunchVisibleRow,
+        .autocomplete = onAutocomplete,
         .dismiss = onDismiss,
     });
     launcher.buildUi();
@@ -245,6 +255,11 @@ fn onLaunchVisibleRow(context: *anyopaque, visible_index: usize) bool {
     return app_launcher.launchVisibleRow(visible_index);
 }
 
+fn onAutocomplete(context: *anyopaque) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.autocomplete();
+}
+
 fn onDismiss(context: *anyopaque) void {
     const app_launcher: *Launcher = @ptrCast(@alignCast(context));
     app_launcher.dismiss(.return_to_previous_app);
@@ -264,6 +279,26 @@ fn lowerTrimmedQuery(query: []const u8, buffer: []u8) []const u8 {
     return std.ascii.lowerString(buffer[0..n], trimmed[0..n]);
 }
 
+fn longestCommonAppPrefix(all_apps: []const apps.App, matches: []const usize) ?[]const u8 {
+    if (matches.len == 0) return null;
+
+    var prefix = all_apps[matches[0]].name_lower;
+    for (matches[1..]) |app_index| {
+        const candidate = all_apps[app_index].name_lower;
+        prefix = prefix[0..commonPrefixLen(prefix, candidate)];
+        if (prefix.len == 0) return prefix;
+    }
+    return prefix;
+}
+
+fn commonPrefixLen(lhs: []const u8, rhs: []const u8) usize {
+    const n = @min(lhs.len, rhs.len);
+    for (lhs[0..n], rhs[0..n], 0..) |a, b, i| {
+        if (a != b) return i;
+    }
+    return n;
+}
+
 test "scroll offset advances after the fifth visible item" {
     try std.testing.expectEqual(@as(usize, 0), scrollOffsetForHighlight(4, 0, 5));
     try std.testing.expectEqual(@as(usize, 1), scrollOffsetForHighlight(5, 0, 5));
@@ -279,4 +314,31 @@ test "query matching ignores surrounding whitespace" {
     try std.testing.expectEqualStrings("calculator", lowerTrimmedQuery("Calculator   ", &buffer));
     try std.testing.expectEqualStrings("messages", lowerTrimmedQuery("   Messages", &buffer));
     try std.testing.expectEqualStrings("mail", lowerTrimmedQuery("  Mail   ", &buffer));
+}
+
+test "autocomplete uses longest common app prefix" {
+    const test_apps = [_]apps.App{
+        .{ .name = "Microsoft Excel", .name_lower = "microsoft excel", .path = "" },
+        .{ .name = "Microsoft Word", .name_lower = "microsoft word", .path = "" },
+        .{ .name = "Microsoft Teams", .name_lower = "microsoft teams", .path = "" },
+    };
+    const matches = [_]usize{ 0, 1, 2 };
+
+    try std.testing.expectEqualStrings("microsoft ", longestCommonAppPrefix(&test_apps, &matches).?);
+}
+
+test "autocomplete returns null without matches" {
+    const test_apps = [_]apps.App{};
+    const matches = [_]usize{};
+
+    try std.testing.expect(longestCommonAppPrefix(&test_apps, &matches) == null);
+}
+
+test "autocomplete can narrow to an exact single app" {
+    const test_apps = [_]apps.App{
+        .{ .name = "Calculator", .name_lower = "calculator", .path = "" },
+    };
+    const matches = [_]usize{0};
+
+    try std.testing.expectEqualStrings("calculator", longestCommonAppPrefix(&test_apps, &matches).?);
 }
