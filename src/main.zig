@@ -11,6 +11,7 @@ const Layout = struct {
     const input_height: objc.CGFloat = 50;
     const entry_font_size: objc.CGFloat = 18;
     const row_height: objc.CGFloat = 46;
+    const selected_bar_width: objc.CGFloat = 2;
     const visible_rows = 5;
     const input_y: objc.CGFloat = panel_height - margin - input_height;
     const row_start_y: objc.CGFloat = input_y - margin - row_height;
@@ -53,6 +54,7 @@ const Launcher = struct {
     panel: objc.Panel = .{},
     input: objc.TextField = .{},
     rows: [Layout.visible_rows]objc.TextField = [_]objc.TextField{.{}} ** Layout.visible_rows,
+    selected_bars: [Layout.visible_rows]objc.View = [_]objc.View{.{}} ** Layout.visible_rows,
     delegate: objc.Object = .{},
     previous_app: objc.RunningApplication = .{},
     dismissing: bool = false,
@@ -102,12 +104,20 @@ const Launcher = struct {
         content.addSubview(self.input);
 
         var y: objc.CGFloat = Layout.row_start_y;
-        for (&self.rows) |*row| {
+        for (&self.rows, &self.selected_bars) |*row, *selected_bar| {
             row.* = makeTextField(.{
                 .origin = .{ .x = Layout.margin, .y = y },
                 .size = .{ .width = Layout.panel_width - Layout.margin * 2, .height = Layout.row_height },
             }, colors.text, objc.Color.clear(), false);
             content.addSubview(row.*);
+
+            selected_bar.* = objc.View.create(.{
+                .origin = .{ .x = Layout.margin, .y = y },
+                .size = .{ .width = Layout.selected_bar_width, .height = Layout.row_height },
+            }, colors.accent);
+            selected_bar.setHidden(true);
+            content.addSubview(selected_bar.*);
+
             y -= Layout.row_height;
         }
     }
@@ -151,6 +161,9 @@ const Launcher = struct {
         self.input.setTextColor(colors.text);
         self.input.setFillColor(colors.input);
         self.input.setBorder(1.5, colors.accent);
+        for (self.selected_bars) |selected_bar| {
+            selected_bar.setFillColor(colors.accent);
+        }
     }
 
     fn restorePreviousApp(self: *Launcher) void {
@@ -231,9 +244,10 @@ const Launcher = struct {
 
     fn updateRows(self: *Launcher) void {
         const colors = theme.Theme.current(self.app);
-        for (self.rows, 0..) |row, i| {
+        for (self.rows, self.selected_bars, 0..) |row, selected_bar, i| {
             if (row.isNil()) continue;
             const match_index = self.scroll_offset + i;
+            const is_match = match_index < self.matches.items.len;
             if (match_index < self.matches.items.len) {
                 const app = self.all_apps.items[self.matches.items[match_index]];
                 row.setStringValue(objc.String.fromUtf8(self.arena, app.name));
@@ -241,12 +255,14 @@ const Launcher = struct {
                 row.setStringValue(objc.String.fromUtf8(self.arena, ""));
             }
 
-            if (match_index == self.highlighted and match_index < self.matches.items.len) {
+            if (match_index == self.highlighted and is_match) {
                 row.setFillColor(colors.selected);
                 row.setTextColor(colors.selected_text);
+                selected_bar.setHidden(false);
             } else {
                 row.setFillColor(objc.Color.clear());
                 row.setTextColor(colors.muted);
+                selected_bar.setHidden(true);
             }
         }
     }

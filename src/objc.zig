@@ -383,8 +383,24 @@ pub const Panel = struct {
 pub const View = struct {
     object: Object = .{},
 
+    pub fn create(frame: Rect, background_color: Color) View {
+        const allocated = Object.alloc("NSView");
+        const view = View{ .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), frame)) };
+        view.setWantsLayer(true);
+        view.setFillColor(background_color);
+        return view;
+    }
+
     pub fn setWantsLayer(self: View, value: BOOL) void {
         msgSendVoidBool(self.object.id, sel("setWantsLayer:"), value);
+    }
+
+    pub fn setHidden(self: View, value: BOOL) void {
+        msgSendVoidBool(self.object.id, sel("setHidden:"), value);
+    }
+
+    pub fn setFillColor(self: View, color: Color) void {
+        self.layer().setBackgroundColor(color.cgColor());
     }
 
     pub fn layer(self: View) Layer {
