@@ -1,4 +1,5 @@
 const std = @import("std");
+const keymap = @import("keymap.zig");
 
 pub const OSStatus = i32;
 
@@ -27,11 +28,11 @@ extern "c" fn InstallEventHandler(EventTargetRef, HandlerProc, usize, [*]const E
 
 var hotkey_ref: EventHotKeyRef = null;
 
-pub fn register(handler: HandlerProc) void {
+pub fn register(handler: HandlerProc, binding: keymap.Key) void {
     const target = GetApplicationEventTarget();
     const event = [_]EventTypeSpec{.{ .eventClass = kEventClassKeyboard, .eventKind = kEventHotKeyPressed }};
     _ = InstallEventHandler(target, handler, 1, &event, null, null);
-    _ = RegisterEventHotKey(kVK_Space, cmdKey, .{ .signature = fourcc("zlch"), .id = 1 }, target, 0, &hotkey_ref);
+    _ = RegisterEventHotKey(binding.carbon_key_code, binding.carbon_modifiers, .{ .signature = fourcc("zlch"), .id = 1 }, target, 0, &hotkey_ref);
 }
 
 fn fourcc(comptime s: *const [4]u8) u32 {
@@ -40,5 +41,3 @@ fn fourcc(comptime s: *const [4]u8) u32 {
 
 const kEventClassKeyboard = fourcc("keyb");
 const kEventHotKeyPressed: u32 = 5;
-const cmdKey: u32 = 0x0100;
-const kVK_Space: u32 = 0x31;

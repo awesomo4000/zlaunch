@@ -1,6 +1,7 @@
 const std = @import("std");
 const apps = @import("apps.zig");
 const callbacks = @import("callbacks.zig");
+const config = @import("config.zig");
 const hotkey = @import("hotkey.zig");
 const objc = @import("objc.zig");
 const theme = @import("theme.zig");
@@ -202,6 +203,7 @@ var launcher: Launcher = undefined;
 
 pub fn main(init_context: std.process.Init) !void {
     const options = try parseArgs(init_context);
+    const app_config = try config.load(init_context.arena.allocator(), init_context.io, init_context.environ_map);
     launcher = try Launcher.init(init_context);
     launcher.filter("");
 
@@ -215,7 +217,7 @@ pub fn main(init_context: std.process.Init) !void {
         .dismiss = onDismiss,
     });
     launcher.buildUi();
-    hotkey.register(hotkeyHandler);
+    hotkey.register(hotkeyHandler, app_config.hotkey);
 
     if (options.show_now) launcher.show();
     launcher.app.run();
