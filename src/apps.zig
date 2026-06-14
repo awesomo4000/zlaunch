@@ -38,18 +38,36 @@ fn discoverDir(arena: std.mem.Allocator, io: std.Io, list: *std.ArrayList(App), 
 
     var iter = dir.iterate();
     while (try iter.next(io)) |entry| {
-        if (entry.kind != .directory) continue;
-        if (!std.mem.endsWith(u8, entry.name, ".app")) continue;
+        if (!isApplicationBundleEntry(entry.kind, entry.name)) continue;
         try addApplication(arena, list, path, entry.name);
     }
 }
 
+fn isApplicationBundleEntry(kind: std.Io.File.Kind, name: []const u8) bool {
+    switch (kind) {
+        .directory, .sym_link => {},
+        else => return false,
+    }
+
+    return std.mem.endsWith(u8, name, ".app");
+}
+
 fn addApplication(arena: std.mem.Allocator, list: *std.ArrayList(App), dir_path: []const u8, bundle_name: []const u8) !void {
+    if (containsApplication(list.items, bundle_name)) return;
+
     const name = try arena.dupe(u8, bundle_name[0 .. bundle_name.len - 4]);
     const lower = try arena.alloc(u8, name.len);
     _ = std.ascii.lowerString(lower, name);
     const path = try std.fs.path.join(arena, &.{ dir_path, bundle_name });
     try list.append(arena, .{ .name = name, .name_lower = lower, .path = path });
+}
+
+fn containsApplication(app_list: []const App, bundle_name: []const u8) bool {
+    const name = bundle_name[0 .. bundle_name.len - 4];
+    for (app_list) |app| {
+        if (std.ascii.eqlIgnoreCase(app.name, name)) return true;
+    }
+    return false;
 }
 
 fn appLessThan(_: void, lhs: App, rhs: App) bool {
@@ -81,4 +99,21 @@ test "filter keeps empty query behavior" {
     defer matches.deinit(std.testing.allocator);
 
     try std.testing.expectEqualSlices(usize, &.{ 0, 1 }, matches.items);
+}
+
+test "discovery accepts symlinked app bundles" {
+    try std.testing.expect(isApplicationBundleEntry(.directory, "Messages.app"));
+    try std.testing.expect(isApplicationBundleEntry(.sym_link, "Safari.app"));
+    try std.testing.expect(!isApplicationBundleEntry(.file, "Notes.app"));
+    try std.testing.expect(!isApplicationBundleEntry(.sym_link, "README"));
+}
+
+test "duplicate app bundle names are skipped" {
+    const test_apps = [_]App{
+        .{ .name = "Safari", .name_lower = "safari", .path = "/Applications/Safari.app" },
+    };
+
+    try std.testing.expect(containsApplication(&test_apps, "Safari.app"));
+    try std.testing.expect(containsApplication(&test_apps, "safari.app"));
+    try std.testing.expect(!containsApplication(&test_apps, "Safari Technology Preview.app"));
 }
