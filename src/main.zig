@@ -107,7 +107,8 @@ fn buildPanel() void {
     });
     s.panel = panel;
 
-    panel.setOpaque(false);
+    panel.setOpaque(true);
+    panel.setBackgroundColor(objc.Color.windowBackground());
     panel.setMovableByWindowBackground(true);
     panel.setHidesOnDeactivate(true);
     panel.setLevel(.floating);
@@ -116,17 +117,17 @@ fn buildPanel() void {
     const content = panel.contentView();
     content.setWantsLayer(true);
     const layer = content.layer();
-    layer.setBackgroundColor(objc.Color.calibratedWhite(0.10, 0.96).cgColor());
-    layer.setCornerRadius(14);
+    layer.setBackgroundColor(objc.Color.windowBackground().cgColor());
+    layer.setCornerRadius(0);
 
-    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, 28, objc.Color.calibratedWhite(0.93, 1.0), objc.Color.calibratedWhite(0.16, 0.92), true);
+    const input = makeTextField(.{ .origin = .{ .x = 20, .y = 316 }, .size = .{ .width = 600, .height = 50 } }, 28, objc.Color.text(), objc.Color.textBackground(), true);
     s.input = input;
     input.setDelegate(s.delegate);
     content.addSubview(input);
 
     var y: objc.CGFloat = 266;
     for (0..max_visible_rows) |i| {
-        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = 38 } }, 18, objc.Color.calibratedWhite(0.87, 1.0), objc.Color.calibratedWhite(0.0, 0.0), false);
+        const row = makeTextField(.{ .origin = .{ .x = 20, .y = y }, .size = .{ .width = 600, .height = 38 } }, 18, objc.Color.text(), objc.Color.clear(), false);
         s.rows[i] = row;
         content.addSubview(row);
         y -= 38;
@@ -293,8 +294,10 @@ fn launchHighlighted() void {
 
 fn updateRows() void {
     const s = &state;
-    const selected_color = objc.Color.rgb(0.18, 0.38, 0.86, 0.94);
-    const clear_color = objc.Color.calibratedWhite(0.0, 0.0);
+    const selected_color = objc.Color.selectedContentBackground();
+    const selected_text_color = objc.Color.alternateSelectedControlText();
+    const clear_color = objc.Color.clear();
+    const text_color = objc.Color.text();
     for (s.rows, 0..) |row, i| {
         if (row.isNil()) continue;
         const match_index = s.scroll_offset + i;
@@ -306,8 +309,10 @@ fn updateRows() void {
         }
         if (match_index == s.highlighted and match_index < s.matches.items.len) {
             row.setBackgroundColor(selected_color);
+            row.setTextColor(selected_text_color);
         } else {
             row.setBackgroundColor(clear_color);
+            row.setTextColor(text_color);
         }
     }
 }

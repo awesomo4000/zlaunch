@@ -97,6 +97,34 @@ pub const String = struct {
 pub const Color = struct {
     object: Object = .{},
 
+    pub fn windowBackground() Color {
+        return named("windowBackgroundColor");
+    }
+
+    pub fn text() Color {
+        return named("textColor");
+    }
+
+    pub fn textBackground() Color {
+        return named("textBackgroundColor");
+    }
+
+    pub fn selectedContentBackground() Color {
+        return named("selectedContentBackgroundColor");
+    }
+
+    pub fn selectedText() Color {
+        return named("selectedTextColor");
+    }
+
+    pub fn alternateSelectedControlText() Color {
+        return named("alternateSelectedControlTextColor");
+    }
+
+    pub fn clear() Color {
+        return named("clearColor");
+    }
+
     pub fn calibratedWhite(white: CGFloat, alpha: CGFloat) Color {
         const Fn = *const fn (Id, Selector, CGFloat, CGFloat) callconv(.c) Id;
         const f: Fn = @ptrCast(&objc_msgSend);
@@ -111,6 +139,10 @@ pub const Color = struct {
 
     pub fn cgColor(self: Color) Object {
         return .wrap(msgSendId0(self.object.id, sel("CGColor")));
+    }
+
+    fn named(selector_name: [*:0]const u8) Color {
+        return .{ .object = .wrap(msgSendId0(cls("NSColor"), sel(selector_name))) };
     }
 };
 
@@ -204,6 +236,10 @@ pub const Panel = struct {
         msgSendVoidBool(self.object.id, sel("setOpaque:"), value);
     }
 
+    pub fn setBackgroundColor(self: Panel, color: Color) void {
+        msgSendVoidId(self.object.id, sel("setBackgroundColor:"), color.object.id);
+    }
+
     pub fn setMovableByWindowBackground(self: Panel, value: BOOL) void {
         msgSendVoidBool(self.object.id, sel("setMovableByWindowBackground:"), value);
     }
@@ -280,7 +316,7 @@ pub const TextField = struct {
         text_color: Color,
         background_color: Color,
         editable: BOOL,
-        corner_radius: CGFloat = 7,
+        corner_radius: CGFloat = 0,
     };
 
     pub fn create(options: Options) TextField {
@@ -319,6 +355,10 @@ pub const TextField = struct {
         msgSendVoidId(self.object.id, sel("setBackgroundColor:"), color.object.id);
     }
 
+    pub fn setTextColor(self: TextField, color: Color) void {
+        msgSendVoidId(self.object.id, sel("setTextColor:"), color.object.id);
+    }
+
     fn setBordered(self: TextField, value: BOOL) void {
         msgSendVoidBool(self.object.id, sel("setBordered:"), value);
     }
@@ -337,10 +377,6 @@ pub const TextField = struct {
 
     fn setFont(self: TextField, font: Font) void {
         msgSendVoidId(self.object.id, sel("setFont:"), font.object.id);
-    }
-
-    fn setTextColor(self: TextField, color: Color) void {
-        msgSendVoidId(self.object.id, sel("setTextColor:"), color.object.id);
     }
 
     fn setDrawsBackground(self: TextField, value: BOOL) void {
