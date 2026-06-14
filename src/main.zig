@@ -65,6 +65,11 @@ const Theme = struct {
     }
 };
 
+const DismissBehavior = enum {
+    restore_previous_app,
+    keep_launched_app,
+};
+
 const max_visible_rows = 8;
 const entry_font_size: objc.CGFloat = 18;
 const row_height: objc.CGFloat = 46;
@@ -220,7 +225,7 @@ fn showLauncher() void {
     s.panel.makeFirstResponder(s.input.object);
 }
 
-fn dismissLauncher() void {
+fn dismissLauncher(behavior: DismissBehavior) void {
     var s = &state;
     if (s.dismissing) return;
     s.dismissing = true;
@@ -230,7 +235,10 @@ fn dismissLauncher() void {
     s.query.clearRetainingCapacity();
     filter("");
     updateRows();
-    restorePreviousApp();
+    switch (behavior) {
+        .restore_previous_app => restorePreviousApp(),
+        .keep_launched_app => releasePreviousApp(),
+    }
 }
 
 fn applyTheme() void {
@@ -323,14 +331,14 @@ fn doCommandBySelector(_: objc.Id, _: objc.Selector, _: objc.Id, _: objc.Id, com
         return true;
     }
     if (command == sel_cancel_operation) {
-        dismissLauncher();
+        dismissLauncher(.restore_previous_app);
         return true;
     }
     return false;
 }
 
 fn windowDidResignKey(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) void {
-    dismissLauncher();
+    dismissLauncher(.restore_previous_app);
 }
 
 fn moveHighlight(delta: i32) void {
@@ -348,7 +356,7 @@ fn moveHighlight(delta: i32) void {
 fn launchHighlighted() void {
     const s = &state;
     if (s.matches.items.len == 0) {
-        dismissLauncher();
+        dismissLauncher(.restore_previous_app);
         return;
     }
     const app_index = s.matches.items[s.highlighted];
@@ -359,11 +367,11 @@ fn launchHighlighted() void {
         .stdout = .ignore,
         .stderr = .ignore,
     }) catch {
-        dismissLauncher();
+        dismissLauncher(.restore_previous_app);
         return;
     };
     _ = child.wait(s.io) catch {};
-    dismissLauncher();
+    dismissLauncher(.keep_launched_app);
 }
 
 fn updateRows() void {
