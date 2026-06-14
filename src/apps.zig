@@ -26,6 +26,28 @@ pub fn filter(arena: std.mem.Allocator, all_apps: []const App, query_lower: []co
     }
 }
 
+pub fn sortMatchesByLaunchCount(all_apps: []const App, matches: []usize, launch_counts: anytype) void {
+    const Context = struct {
+        all_apps: []const App,
+        launch_counts: @TypeOf(launch_counts),
+
+        fn lessThan(context: @This(), lhs_index: usize, rhs_index: usize) bool {
+            const lhs = context.all_apps[lhs_index];
+            const rhs = context.all_apps[rhs_index];
+            const lhs_count = context.launch_counts.count(lhs.path);
+            const rhs_count = context.launch_counts.count(rhs.path);
+
+            if (lhs_count != rhs_count) return lhs_count > rhs_count;
+            return lhs_index < rhs_index;
+        }
+    };
+
+    std.sort.block(usize, matches, Context{
+        .all_apps = all_apps,
+        .launch_counts = launch_counts,
+    }, Context.lessThan);
+}
+
 fn discoverUserApplications(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map, list: *std.ArrayList(App)) !void {
     const home = env.get("HOME") orelse return;
     const path = try std.fs.path.join(arena, &.{ home, "Applications" });
@@ -116,4 +138,42 @@ test "duplicate app bundle names are skipped" {
     try std.testing.expect(containsApplication(&test_apps, "Safari.app"));
     try std.testing.expect(containsApplication(&test_apps, "safari.app"));
     try std.testing.expect(!containsApplication(&test_apps, "Safari Technology Preview.app"));
+}
+
+test "sort matches ranks launch counts before alphabetical order" {
+    const test_apps = [_]App{
+        .{ .name = "Calendar", .name_lower = "calendar", .path = "/Applications/Calendar.app" },
+        .{ .name = "Calculator", .name_lower = "calculator", .path = "/Applications/Calculator.app" },
+        .{ .name = "Camera", .name_lower = "camera", .path = "/Applications/Camera.app" },
+    };
+    var matches = [_]usize{ 0, 1, 2 };
+
+    const LaunchCounts = struct {
+        fn count(_: @This(), path: []const u8) u64 {
+            if (std.mem.eql(u8, path, "/Applications/Camera.app")) return 3;
+            if (std.mem.eql(u8, path, "/Applications/Calendar.app")) return 1;
+            return 0;
+        }
+    };
+
+    sortMatchesByLaunchCount(&test_apps, &matches, LaunchCounts{});
+    try std.testing.expectEqualSlices(usize, &.{ 2, 0, 1 }, &matches);
+}
+
+test "sort matches keeps alphabetical order for equal counts" {
+    const test_apps = [_]App{
+        .{ .name = "Calendar", .name_lower = "calendar", .path = "/Applications/Calendar.app" },
+        .{ .name = "Calculator", .name_lower = "calculator", .path = "/Applications/Calculator.app" },
+        .{ .name = "Camera", .name_lower = "camera", .path = "/Applications/Camera.app" },
+    };
+    var matches = [_]usize{ 0, 1, 2 };
+
+    const LaunchCounts = struct {
+        fn count(_: @This(), _: []const u8) u64 {
+            return 2;
+        }
+    };
+
+    sortMatchesByLaunchCount(&test_apps, &matches, LaunchCounts{});
+    try std.testing.expectEqualSlices(usize, &.{ 0, 1, 2 }, &matches);
 }

@@ -4,6 +4,7 @@ const callbacks = @import("callbacks.zig");
 const config = @import("config.zig");
 const hotkey = @import("hotkey.zig");
 const objc = @import("objc.zig");
+const stats = @import("stats.zig");
 const theme = @import("theme.zig");
 const ui = @import("ui.zig");
 
@@ -20,6 +21,7 @@ const Launcher = struct {
     arena: std.mem.Allocator,
     io: std.Io,
     all_apps: std.ArrayList(apps.App) = .empty,
+    launch_stats: stats.Stats = .{},
     matches: std.ArrayList(usize) = .empty,
     query: std.ArrayList(u8) = .empty,
     highlighted: usize = 0,
@@ -43,6 +45,7 @@ const Launcher = struct {
             .arena = arena,
             .io = init_context.io,
             .all_apps = try apps.discover(arena, init_context.io, init_context.environ_map),
+            .launch_stats = try stats.Stats.load(arena, init_context.io, init_context.environ_map),
             .app = app,
         };
     }
@@ -125,6 +128,7 @@ const Launcher = struct {
         const lowered = lowerTrimmedQuery(query, &lower_buf);
         self.query.appendSlice(self.arena, lowered) catch return;
         apps.filter(self.arena, self.all_apps.items, lowered, &self.matches);
+        apps.sortMatchesByLaunchCount(self.all_apps.items, self.matches.items, self.launch_stats);
     }
 
     fn moveHighlight(self: *Launcher, delta: i32) void {
@@ -173,7 +177,12 @@ const Launcher = struct {
             self.dismiss(.return_to_previous_app);
             return;
         };
-        _ = child.wait(self.io) catch {};
+        const term: std.process.Child.Term = child.wait(self.io) catch .{ .unknown = 0 };
+        const launched = switch (term) {
+            .exited => |code| code == 0,
+            else => false,
+        };
+        if (launched) self.launch_stats.recordLaunch(path) catch {};
         self.dismiss(.leave_launched_app_active);
     }
 
