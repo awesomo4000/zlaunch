@@ -46,6 +46,8 @@ const State = struct {
     input: objc.TextField = .{},
     rows: [max_visible_rows]objc.TextField = [_]objc.TextField{.{}} ** max_visible_rows,
     delegate: objc.Object = .{},
+    previous_app: objc.RunningApplication = .{},
+    dismissing: bool = false,
     scroll_offset: usize = 0,
 };
 
@@ -165,6 +167,9 @@ fn hotkeyHandler(_: EventHandlerCallRef, _: EventRef, _: ?*anyopaque) callconv(.
 fn showLauncher() void {
     var s = &state;
     resetCursor();
+    releasePreviousApp();
+    s.previous_app = objc.Workspace.shared().frontmostApplication().retain();
+    s.dismissing = false;
     s.input.setStringValue(objc.String.fromUtf8(s.arena, ""));
     s.query.clearRetainingCapacity();
     filter("");
@@ -177,12 +182,31 @@ fn showLauncher() void {
 
 fn dismissLauncher() void {
     var s = &state;
+    if (s.dismissing) return;
+    s.dismissing = true;
     s.panel.orderOut();
     resetCursor();
     s.input.setStringValue(objc.String.fromUtf8(s.arena, ""));
     s.query.clearRetainingCapacity();
     filter("");
     updateRows();
+    restorePreviousApp();
+}
+
+fn restorePreviousApp() void {
+    var s = &state;
+    const previous = s.previous_app;
+    s.previous_app = .{};
+    if (previous.isNil()) return;
+    previous.activate(.{ .ignoring_other_apps = true });
+    previous.release();
+}
+
+fn releasePreviousApp() void {
+    var s = &state;
+    if (s.previous_app.isNil()) return;
+    s.previous_app.release();
+    s.previous_app = .{};
 }
 
 fn resetCursor() void {

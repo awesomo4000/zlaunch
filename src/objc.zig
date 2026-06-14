@@ -80,6 +80,16 @@ pub const Object = struct {
         return self.id == null;
     }
 
+    pub fn retain(self: Object) Object {
+        if (self.isNil()) return self;
+        return .wrap(msgSendId0(self.id, sel("retain")));
+    }
+
+    pub fn release(self: Object) void {
+        if (self.isNil()) return;
+        msgSendVoid0(self.id, sel("release"));
+    }
+
     pub fn alloc(class_name: [*:0]const u8) Object {
         return .wrap(msgSendId0(cls(class_name), sel("alloc")));
     }
@@ -188,6 +198,50 @@ pub const Application = struct {
     pub fn run(self: Application) noreturn {
         msgSendVoid0(self.object.id, sel("run"));
         unreachable;
+    }
+};
+
+pub const Workspace = struct {
+    object: Object = .{},
+
+    pub fn shared() Workspace {
+        return .{ .object = .wrap(msgSendId0(cls("NSWorkspace"), sel("sharedWorkspace"))) };
+    }
+
+    pub fn frontmostApplication(self: Workspace) RunningApplication {
+        return .{ .object = .wrap(msgSendId0(self.object.id, sel("frontmostApplication"))) };
+    }
+};
+
+pub const RunningApplication = struct {
+    object: Object = .{},
+
+    pub const ActivationOptions = struct {
+        all_windows: bool = false,
+        ignoring_other_apps: bool = false,
+
+        fn mask(self: ActivationOptions) NSUInteger {
+            var value: NSUInteger = 0;
+            if (self.all_windows) value |= 1 << 0;
+            if (self.ignoring_other_apps) value |= 1 << 1;
+            return value;
+        }
+    };
+
+    pub fn isNil(self: RunningApplication) bool {
+        return self.object.isNil();
+    }
+
+    pub fn retain(self: RunningApplication) RunningApplication {
+        return .{ .object = self.object.retain() };
+    }
+
+    pub fn release(self: RunningApplication) void {
+        self.object.release();
+    }
+
+    pub fn activate(self: RunningApplication, options: ActivationOptions) void {
+        _ = msgSendBoolUInteger(self.object.id, sel("activateWithOptions:"), options.mask());
     }
 };
 
@@ -531,6 +585,12 @@ pub fn msgSendVoidInt(recv: Id, op: Selector, arg: NSInteger) void {
     const Fn = *const fn (Id, Selector, NSInteger) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
     f(recv, op, arg);
+}
+
+pub fn msgSendBoolUInteger(recv: Id, op: Selector, arg: NSUInteger) BOOL {
+    const Fn = *const fn (Id, Selector, NSUInteger) callconv(.c) BOOL;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, arg);
 }
 
 pub fn msgSendCGFloat0(recv: Id, op: Selector) CGFloat {
