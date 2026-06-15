@@ -16,7 +16,7 @@ pub const Theme = struct {
     pub fn current(app: objc.Application) Theme {
         if (app.isDarkMode()) {
             return .{
-                .panel = hexColorAlpha(Palette.Dark.glass_tint, 0.78),
+                .panel = hexColorAlpha(Palette.Dark.glass_tint, 0.68),
                 .input = objc.Color.clear(),
                 .text = hexColor(Palette.Dark.ink),
                 .muted = hexColor(Palette.Dark.quiet_ink),
@@ -31,7 +31,7 @@ pub const Theme = struct {
         }
 
         return .{
-            .panel = hexColorAlpha(Palette.Light.glass_tint, 0.62),
+            .panel = hexColorAlpha(Palette.Light.glass_tint, 0.52),
             .input = objc.Color.clear(),
             .text = hexColor(Palette.Light.ink),
             .muted = hexColor(Palette.Light.quiet_ink),
