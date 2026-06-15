@@ -8,6 +8,10 @@ Zlaunch is a minimal app launcher for MacOS. Press a global hotkey, type part of
 
 zlaunch discovers local `.app` bundles at startup, filters them in process, and launches selections with `/usr/bin/open`.
 
+<p align="center">
+  <img src="images/zlaunch-ui.png" alt="zlaunch launcher UI" width="520">
+</p>
+
 ## Features
 
 - Global hotkey, default `cmd-space`  (may need to unassign it from spotlight)

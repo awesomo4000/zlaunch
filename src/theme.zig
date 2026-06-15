@@ -1,6 +1,7 @@
 const objc = @import("objc.zig");
 
 pub const Theme = struct {
+    glass_style: objc.GlassSurface.Style,
     panel: objc.Color,
     input: objc.Color,
     text: objc.Color,
@@ -17,6 +18,7 @@ pub const Theme = struct {
     pub fn current(app: objc.Application) Theme {
         if (app.isDarkMode()) {
             return .{
+                .glass_style = Glass.style,
                 .panel = hexColorAlpha(Palette.Dark.glass_tint, Alpha.Dark.panel),
                 .input = objc.Color.clear(),
                 .text = hexColor(Palette.Dark.ink),
@@ -33,6 +35,7 @@ pub const Theme = struct {
         }
 
         return .{
+            .glass_style = Glass.style,
             .panel = hexColorAlpha(Palette.Light.glass_tint, Alpha.Light.panel),
             .input = objc.Color.clear(),
             .text = hexColor(Palette.Light.ink),
@@ -47,6 +50,10 @@ pub const Theme = struct {
             .shortcut_border = hexColorAlpha(Palette.Light.key_fill, Alpha.Light.shortcut_border),
         };
     }
+};
+
+pub const Glass = struct {
+    pub const style: objc.GlassSurface.Style = .regular;
 };
 
 fn hexColor(comptime value: u24) objc.Color {

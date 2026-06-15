@@ -563,6 +563,13 @@ pub const GlassSurface = struct {
         }
     }
 
+    pub fn setStyle(self: GlassSurface, style: Style) void {
+        switch (self.kind) {
+            .native_glass => self.setNativeStyle(style),
+            .visual_effect => {},
+        }
+    }
+
     pub fn addSubview(self: GlassSurface, view: anytype) void {
         msgSendVoidId(self.object.id, sel("addSubview:"), view.object.id);
     }

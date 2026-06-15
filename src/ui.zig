@@ -8,6 +8,7 @@ pub const Layout = struct {
         pub const top_padding: objc.CGFloat = 14;
         pub const bottom_padding: objc.CGFloat = top_padding;
         pub const corner_radius: objc.CGFloat = 36;
+        pub const screen_y_ratio: objc.CGFloat = 0.62;
         pub const compact_height: objc.CGFloat = top_padding + Search.height + bottom_padding;
         pub const expanded_height: objc.CGFloat = top_padding + Search.height + List.divider_gap + List.search_to_rows_gap + ResultRow.height * List.visible_rows + bottom_padding;
     };
@@ -20,6 +21,7 @@ pub const Layout = struct {
         pub const text_left: objc.CGFloat = 68;
         pub const text_right_padding: objc.CGFloat = 48;
         pub const corner_radius: objc.CGFloat = height / 2;
+        pub const border_width: objc.CGFloat = 0;
     };
 
     pub const List = struct {
@@ -47,6 +49,8 @@ pub const Layout = struct {
         pub const icon_y_offset: objc.CGFloat = (height - icon_size) / 2;
         pub const app_name_column_x: objc.CGFloat = 112;
         pub const border_width: objc.CGFloat = 1;
+        pub const shortcut_text_baseline_adjustment: objc.CGFloat = -1;
+        pub const shortcut_text_height_padding: objc.CGFloat = 2;
     };
 
     pub const panel_height: objc.CGFloat = Panel.expanded_height;
@@ -226,13 +230,13 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
         },
         .tint_color = colors.panel,
         .corner_radius = Layout.Panel.corner_radius,
-        .style = .regular,
+        .style = colors.glass_style,
     });
     content.addSubview(glass);
     const surface = glass.contentView();
 
     const input = makeTextField(searchTextFrame(.expanded), objc.Font.system(Layout.Search.font_size), colors.text, colors.input, true);
-    input.setBorder(0, colors.accent);
+    input.setBorder(Layout.Search.border_width, colors.accent);
     input.setCornerRadius(Layout.Search.corner_radius);
     input.setDelegate(delegate);
     surface.addSubview(input);
@@ -273,11 +277,12 @@ pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSur
     const colors = theme.Theme.current(app);
     panel.setBackgroundColor(objc.Color.clear());
     panel.contentView().layer().setBackgroundColor(objc.Color.clear().cgColor());
+    glass.setStyle(colors.glass_style);
     glass.setTintColor(colors.panel);
     glass.setCornerRadius(Layout.Panel.corner_radius);
     input.setTextColor(colors.text);
     input.setFillColor(colors.input);
-    input.setBorder(0, colors.accent);
+    input.setBorder(Layout.Search.border_width, colors.accent);
     input.setCornerRadius(Layout.Search.corner_radius);
     search_icon.setContentTintColor(colors.muted);
     for (rows) |row| {
@@ -320,7 +325,7 @@ pub fn positionPanel(panel: objc.Panel, mode: Mode) void {
     const height = Layout.panelHeight(mode);
     panel.setFrameOrigin(.{
         .x = frame.origin.x + (frame.size.width - Layout.Panel.width) / 2,
-        .y = frame.origin.y + frame.size.height * 0.62 - height / 2,
+        .y = frame.origin.y + frame.size.height * Layout.Panel.screen_y_ratio - height / 2,
     });
 }
 
@@ -343,8 +348,14 @@ fn numberBoxFrame(y: objc.CGFloat) objc.Rect {
 
 fn numberLayerFrame(box: objc.Rect) objc.Rect {
     return .{
-        .origin = .{ .x = 0, .y = (box.size.height - Layout.ResultRow.shortcut_font_size) / 2 - 1 },
-        .size = .{ .width = box.size.width, .height = Layout.ResultRow.shortcut_font_size + 2 },
+        .origin = .{
+            .x = 0,
+            .y = (box.size.height - Layout.ResultRow.shortcut_font_size) / 2 + Layout.ResultRow.shortcut_text_baseline_adjustment,
+        },
+        .size = .{
+            .width = box.size.width,
+            .height = Layout.ResultRow.shortcut_font_size + Layout.ResultRow.shortcut_text_height_padding,
+        },
     };
 }
 
