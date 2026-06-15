@@ -1,5 +1,5 @@
 const std = @import("std");
-const apps = @import("apps.zig");
+const app_index = @import("app_index.zig");
 const callbacks = @import("callbacks.zig");
 const config = @import("config.zig");
 const hotkey = @import("hotkey.zig");
@@ -20,10 +20,8 @@ const CliOptions = struct {
 const Launcher = struct {
     arena: std.mem.Allocator,
     io: std.Io,
-    env: *std.process.Environ.Map,
-    all_apps: std.ArrayList(apps.App) = .empty,
+    index: app_index.AppIndex,
     launch_stats: stats.Stats = .{},
-    matches: std.ArrayList(usize) = .empty,
     query: std.ArrayList(u8) = .empty,
     highlighted: usize = 0,
     scroll_offset: usize = 0,
@@ -45,8 +43,7 @@ const Launcher = struct {
         return .{
             .arena = arena,
             .io = init_context.io,
-            .env = init_context.environ_map,
-            .all_apps = try apps.discover(arena, init_context.io, init_context.environ_map),
+            .index = try app_index.AppIndex.init(arena, init_context.io, init_context.environ_map),
             .launch_stats = try stats.Stats.load(arena, init_context.io, init_context.environ_map),
             .app = app,
         };
@@ -68,7 +65,7 @@ const Launcher = struct {
         self.dismissing = false;
         self.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
         self.query.clearRetainingCapacity();
-        self.filter("");
+        self.setQuery("");
         self.setMode(.compact);
         self.positionPanel();
         self.panel.makeKeyAndOrderFront();
@@ -83,7 +80,7 @@ const Launcher = struct {
         objc.Cursor.arrow().set();
         self.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
         self.query.clearRetainingCapacity();
-        self.filter("");
+        self.setQuery("");
         self.setMode(.compact);
 
         switch (behavior) {
@@ -116,12 +113,12 @@ const Launcher = struct {
 
     fn setQueryFromInput(self: *Launcher) void {
         const value = self.input.stringValue();
-        self.filter(std.mem.span(value.utf8()));
+        self.setQuery(std.mem.span(value.utf8()));
         self.syncModeWithMatches();
         self.updateRows();
     }
 
-    fn filter(self: *Launcher, query: []const u8) void {
+    fn setQuery(self: *Launcher, query: []const u8) void {
         self.query.clearRetainingCapacity();
         self.highlighted = 0;
         self.scroll_offset = 0;
@@ -129,15 +126,14 @@ const Launcher = struct {
         var lower_buf: [256]u8 = undefined;
         const lowered = lowerTrimmedQuery(query, &lower_buf);
         self.query.appendSlice(self.arena, lowered) catch return;
-        apps.filter(self.arena, self.all_apps.items, lowered, &self.matches);
-        apps.sortMatchesByLaunchCount(self.all_apps.items, self.matches.items, self.launch_stats);
+        self.index.search(lowered, self.launch_stats);
     }
 
     fn refreshAppsKeepingQuery(self: *Launcher) void {
         var query_buf: [256]u8 = undefined;
         const query = self.copyCurrentQuery(&query_buf);
-        self.all_apps = apps.discover(self.arena, self.io, self.env) catch return;
-        self.filter(query);
+        self.index.refresh() catch return;
+        self.setQuery(query);
         self.syncModeWithMatches();
     }
 
@@ -149,10 +145,10 @@ const Launcher = struct {
 
     fn moveHighlight(self: *Launcher, delta: i32) void {
         if (self.mode == .compact) return;
-        if (self.matches.items.len == 0) return;
+        if (self.index.count() == 0) return;
         if (delta < 0) {
             if (self.highlighted > 0) self.highlighted -= 1;
-        } else if (self.highlighted + 1 < self.matches.items.len) {
+        } else if (self.highlighted + 1 < self.index.count()) {
             self.highlighted += 1;
         }
         self.keepHighlightVisible();
@@ -165,7 +161,7 @@ const Launcher = struct {
 
     fn launchHighlighted(self: *Launcher) void {
         if (self.mode == .compact) return;
-        if (self.matches.items.len == 0) {
+        if (self.index.count() == 0) {
             self.dismiss(.return_to_previous_app);
             return;
         }
@@ -176,51 +172,58 @@ const Launcher = struct {
     fn launchVisibleRow(self: *Launcher, visible_index: usize) bool {
         if (self.mode == .compact) return false;
         const match_index = self.scroll_offset + visible_index;
-        if (match_index >= self.matches.items.len) return false;
+        if (match_index >= self.index.count()) return false;
         self.launchMatch(match_index);
         return true;
     }
 
     fn launchMatch(self: *Launcher, match_index: usize) void {
-        const app_index = self.matches.items[match_index];
-        const path = self.all_apps.items[app_index].path;
-        if (!pathExists(self.io, path)) {
+        const selected_app = self.index.appForMatch(match_index) orelse return;
+        if (!app_index.pathExists(self.io, selected_app.path)) {
             self.refreshAppsKeepingQuery();
             self.updateRows();
             return;
         }
 
+        const launched = self.openApp(selected_app);
+        if (!launched) {
+            self.dismiss(.return_to_previous_app);
+            return;
+        }
+
+        self.launch_stats.recordLaunch(selected_app.path) catch {};
+        self.dismiss(.leave_launched_app_active);
+    }
+
+    fn openApp(self: *Launcher, selected_app: app_index.App) bool {
         var child = std.process.spawn(self.io, .{
-            .argv = &.{ "/usr/bin/open", path },
+            .argv = &.{ "/usr/bin/open", selected_app.path },
             .stdin = .ignore,
             .stdout = .ignore,
             .stderr = .ignore,
         }) catch {
-            self.dismiss(.return_to_previous_app);
-            return;
+            return false;
         };
         const term: std.process.Child.Term = child.wait(self.io) catch .{ .unknown = 0 };
-        const launched = switch (term) {
+        return switch (term) {
             .exited => |code| code == 0,
             else => false,
         };
-        if (launched) self.launch_stats.recordLaunch(path) catch {};
-        self.dismiss(.leave_launched_app_active);
     }
 
     fn autocomplete(self: *Launcher) void {
         if (self.query.items.len == 0) return;
-        const completion = longestCommonAppPrefix(self.all_apps.items, self.matches.items) orelse return;
+        const completion = self.index.longestCommonPrefix() orelse return;
         if (completion.len <= self.query.items.len) return;
 
         self.input.setStringValue(objc.String.fromUtf8(self.arena, completion));
-        self.filter(completion);
+        self.setQuery(completion);
         self.syncModeWithMatches();
         self.updateRows();
     }
 
     fn syncModeWithMatches(self: *Launcher) void {
-        const next_mode: ui.Mode = if (self.query.items.len > 0 and self.matches.items.len > 0) .expanded else .compact;
+        const next_mode: ui.Mode = if (self.query.items.len > 0 and self.index.count() > 0) .expanded else .compact;
         self.setMode(next_mode);
     }
 
@@ -235,41 +238,39 @@ const Launcher = struct {
 
     fn updateRowsChecked(self: *Launcher, allow_refresh: bool) void {
         if (self.mode == .compact) {
-            for (self.rows) |row| row.clear(self.arena);
+            self.clearRows();
             return;
         }
 
-        if (allow_refresh and self.visibleMatchesContainMissingPath()) {
+        if (allow_refresh and self.visibleResultsAreStale()) {
             self.refreshAppsKeepingQuery();
             self.updateRowsChecked(false);
             return;
         }
 
+        self.drawRows();
+    }
+
+    fn clearRows(self: *Launcher) void {
+        for (self.rows) |row| row.clear(self.arena);
+    }
+
+    fn drawRows(self: *Launcher) void {
         const colors = theme.Theme.current(self.app);
         for (self.rows, 0..) |row, i| {
             if (row.isEmpty()) continue;
             const match_index = self.scroll_offset + i;
-            const is_match = match_index < self.matches.items.len;
-            if (is_match) {
-                const app = self.all_apps.items[self.matches.items[match_index]];
-                row.showApp(self.arena, i, app.name);
+            if (self.index.appForMatch(match_index)) |matched_app| {
+                row.showApp(self.arena, i, matched_app.name);
+                row.setSelected(match_index == self.highlighted, colors);
             } else {
                 row.clear(self.arena);
             }
-
-            row.setSelected(match_index == self.highlighted and is_match, colors);
         }
     }
 
-    fn visibleMatchesContainMissingPath(self: *Launcher) bool {
-        for (0..ui.Layout.visible_rows) |i| {
-            const match_index = self.scroll_offset + i;
-            if (match_index >= self.matches.items.len) return false;
-
-            const app = self.all_apps.items[self.matches.items[match_index]];
-            if (!pathExists(self.io, app.path)) return true;
-        }
-        return false;
+    fn visibleResultsAreStale(self: *Launcher) bool {
+        return self.index.visibleMatchesContainMissingPath(self.scroll_offset, ui.Layout.visible_rows);
     }
 };
 
@@ -279,7 +280,7 @@ pub fn main(init_context: std.process.Init) !void {
     const options = try parseArgs(init_context);
     const app_config = try config.load(init_context.arena.allocator(), init_context.io, init_context.environ_map);
     launcher = try Launcher.init(init_context);
-    launcher.filter("");
+    launcher.setQuery("");
 
     launcher.delegate = callbacks.install(.{
         .context = &launcher,
@@ -348,14 +349,6 @@ fn onDismiss(context: *anyopaque) void {
     app_launcher.dismiss(.return_to_previous_app);
 }
 
-fn pathExists(io: std.Io, path: []const u8) bool {
-    std.Io.Dir.accessAbsolute(io, path, .{}) catch |err| switch (err) {
-        error.FileNotFound, error.BadPathName, error.NameTooLong => return false,
-        else => return true,
-    };
-    return true;
-}
-
 fn scrollOffsetForHighlight(highlighted: usize, scroll_offset: usize, visible_rows: usize) usize {
     std.debug.assert(visible_rows > 0);
 
@@ -368,26 +361,6 @@ fn lowerTrimmedQuery(query: []const u8, buffer: []u8) []const u8 {
     const trimmed = std.mem.trim(u8, query, " \t\r\n");
     const n = @min(trimmed.len, buffer.len);
     return std.ascii.lowerString(buffer[0..n], trimmed[0..n]);
-}
-
-fn longestCommonAppPrefix(all_apps: []const apps.App, matches: []const usize) ?[]const u8 {
-    if (matches.len == 0) return null;
-
-    var prefix = all_apps[matches[0]].name_lower;
-    for (matches[1..]) |app_index| {
-        const candidate = all_apps[app_index].name_lower;
-        prefix = prefix[0..commonPrefixLen(prefix, candidate)];
-        if (prefix.len == 0) return prefix;
-    }
-    return prefix;
-}
-
-fn commonPrefixLen(lhs: []const u8, rhs: []const u8) usize {
-    const n = @min(lhs.len, rhs.len);
-    for (lhs[0..n], rhs[0..n], 0..) |a, b, i| {
-        if (a != b) return i;
-    }
-    return n;
 }
 
 test "scroll offset advances after the fifth visible item" {
@@ -405,31 +378,4 @@ test "query matching ignores surrounding whitespace" {
     try std.testing.expectEqualStrings("calculator", lowerTrimmedQuery("Calculator   ", &buffer));
     try std.testing.expectEqualStrings("messages", lowerTrimmedQuery("   Messages", &buffer));
     try std.testing.expectEqualStrings("mail", lowerTrimmedQuery("  Mail   ", &buffer));
-}
-
-test "autocomplete uses longest common app prefix" {
-    const test_apps = [_]apps.App{
-        .{ .name = "Microsoft Excel", .name_lower = "microsoft excel", .path = "" },
-        .{ .name = "Microsoft Word", .name_lower = "microsoft word", .path = "" },
-        .{ .name = "Microsoft Teams", .name_lower = "microsoft teams", .path = "" },
-    };
-    const matches = [_]usize{ 0, 1, 2 };
-
-    try std.testing.expectEqualStrings("microsoft ", longestCommonAppPrefix(&test_apps, &matches).?);
-}
-
-test "autocomplete returns null without matches" {
-    const test_apps = [_]apps.App{};
-    const matches = [_]usize{};
-
-    try std.testing.expect(longestCommonAppPrefix(&test_apps, &matches) == null);
-}
-
-test "autocomplete can narrow to an exact single app" {
-    const test_apps = [_]apps.App{
-        .{ .name = "Calculator", .name_lower = "calculator", .path = "" },
-    };
-    const matches = [_]usize{0};
-
-    try std.testing.expectEqualStrings("calculator", longestCommonAppPrefix(&test_apps, &matches).?);
 }

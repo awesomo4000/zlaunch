@@ -1,5 +1,6 @@
 const std = @import("std");
 const keymap = @import("keymap.zig");
+const paths = @import("paths.zig");
 
 const config_file_name = "zlaunch.json";
 
@@ -21,10 +22,10 @@ const FileConfig = struct {
 };
 
 pub fn load(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map) !Config {
-    const paths = try Paths.init(arena, env);
-    try ensureFile(io, paths);
+    const config_path = try paths.configFile(arena, env, config_file_name);
+    try paths.ensureFile(io, config_path, default_config);
 
-    const data = std.Io.Dir.readFileAlloc(.cwd(), io, paths.file, arena, .limited(4096)) catch {
+    const data = std.Io.Dir.readFileAlloc(.cwd(), io, config_path.file, arena, .limited(4096)) catch {
         return .{};
     };
     const parsed = std.json.parseFromSliceLeaky(FileConfig, arena, data, .{
@@ -37,41 +38,6 @@ pub fn load(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map)
     return .{
         .hotkey = keymap.parse(parsed.hotkey) orelse keymap.default_show_launcher,
     };
-}
-
-fn ensureFile(io: std.Io, paths: Paths) !void {
-    try std.Io.Dir.createDirPath(.cwd(), io, paths.dir);
-    var file = std.Io.Dir.createFileAbsolute(io, paths.file, .{ .exclusive = true }) catch |err| switch (err) {
-        error.PathAlreadyExists => return,
-        else => return err,
-    };
-    defer file.close(io);
-    try file.writeStreamingAll(io, default_config);
-}
-
-const Paths = struct {
-    dir: []const u8,
-    file: []const u8,
-
-    fn init(arena: std.mem.Allocator, env: *std.process.Environ.Map) !Paths {
-        const home = env.get("HOME") orelse return error.HomeNotSet;
-        const dir = try std.fs.path.join(arena, &.{ home, ".config", "zlaunch" });
-        const file = try std.fs.path.join(arena, &.{ dir, config_file_name });
-        return .{ .dir = dir, .file = file };
-    }
-};
-
-test "config paths live under home config directory" {
-    var env = std.process.EnvMap.init(std.testing.allocator);
-    defer env.deinit();
-    try env.put("HOME", "/Users/example");
-
-    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena_state.deinit();
-
-    const paths = try Paths.init(arena_state.allocator(), &env);
-    try std.testing.expectEqualStrings("/Users/example/.config/zlaunch", paths.dir);
-    try std.testing.expectEqualStrings("/Users/example/.config/zlaunch/zlaunch.json", paths.file);
 }
 
 test "load parsed config hotkey from json" {

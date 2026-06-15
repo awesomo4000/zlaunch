@@ -1,4 +1,5 @@
 const std = @import("std");
+const paths = @import("paths.zig");
 
 const stats_file_name = "stats.json";
 
@@ -21,28 +22,28 @@ const FileStats = struct {
 pub const Stats = struct {
     arena: std.mem.Allocator = undefined,
     io: std.Io = undefined,
-    paths: Paths = .{},
+    config_file: paths.ConfigFile = .{ .dir = "", .file = "" },
     launches: LaunchMap = .empty,
 
     pub fn load(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map) !Stats {
-        const paths = try Paths.init(arena, env);
-        try ensureFile(io, paths);
+        const config_file = try paths.configFile(arena, env, stats_file_name);
+        try paths.ensureFile(io, config_file, default_stats);
 
-        const data = std.Io.Dir.readFileAlloc(.cwd(), io, paths.file, arena, .limited(1024 * 1024)) catch {
-            return empty(arena, io, paths);
+        const data = std.Io.Dir.readFileAlloc(.cwd(), io, config_file.file, arena, .limited(1024 * 1024)) catch {
+            return empty(arena, io, config_file);
         };
         const parsed = std.json.parseFromSliceLeaky(FileStats, arena, data, .{
             .ignore_unknown_fields = true,
             .duplicate_field_behavior = .use_last,
             .allocate = .alloc_always,
         }) catch {
-            return empty(arena, io, paths);
+            return empty(arena, io, config_file);
         };
 
         return .{
             .arena = arena,
             .io = io,
-            .paths = paths,
+            .config_file = config_file,
             .launches = parsed.launches.map,
         };
     }
@@ -63,7 +64,7 @@ pub const Stats = struct {
     }
 
     fn save(self: Stats) !void {
-        try std.Io.Dir.createDirPath(.cwd(), self.io, self.paths.dir);
+        try std.Io.Dir.createDirPath(.cwd(), self.io, self.config_file.dir);
 
         var out: std.Io.Writer.Allocating = .init(std.heap.page_allocator);
         defer out.deinit();
@@ -73,54 +74,19 @@ pub const Stats = struct {
         }, .{ .whitespace = .indent_2 }, &out.writer);
         try out.writer.writeByte('\n');
 
-        var file = try std.Io.Dir.createFileAbsolute(self.io, self.paths.file, .{});
+        var file = try std.Io.Dir.createFileAbsolute(self.io, self.config_file.file, .{});
         defer file.close(self.io);
         try file.writeStreamingAll(self.io, out.writer.buffered());
     }
 
-    fn empty(arena: std.mem.Allocator, io: std.Io, paths: Paths) Stats {
+    fn empty(arena: std.mem.Allocator, io: std.Io, config_file: paths.ConfigFile) Stats {
         return .{
             .arena = arena,
             .io = io,
-            .paths = paths,
+            .config_file = config_file,
         };
     }
 };
-
-fn ensureFile(io: std.Io, paths: Paths) !void {
-    try std.Io.Dir.createDirPath(.cwd(), io, paths.dir);
-    var file = std.Io.Dir.createFileAbsolute(io, paths.file, .{ .exclusive = true }) catch |err| switch (err) {
-        error.PathAlreadyExists => return,
-        else => return err,
-    };
-    defer file.close(io);
-    try file.writeStreamingAll(io, default_stats);
-}
-
-const Paths = struct {
-    dir: []const u8 = "",
-    file: []const u8 = "",
-
-    fn init(arena: std.mem.Allocator, env: *std.process.Environ.Map) !Paths {
-        const home = env.get("HOME") orelse return error.HomeNotSet;
-        const dir = try std.fs.path.join(arena, &.{ home, ".config", "zlaunch" });
-        const file = try std.fs.path.join(arena, &.{ dir, stats_file_name });
-        return .{ .dir = dir, .file = file };
-    }
-};
-
-test "stats paths live under home config directory" {
-    var env = std.process.EnvMap.init(std.testing.allocator);
-    defer env.deinit();
-    try env.put("HOME", "/Users/example");
-
-    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
-    defer arena_state.deinit();
-
-    const paths = try Paths.init(arena_state.allocator(), &env);
-    try std.testing.expectEqualStrings("/Users/example/.config/zlaunch", paths.dir);
-    try std.testing.expectEqualStrings("/Users/example/.config/zlaunch/stats.json", paths.file);
-}
 
 test "stats count defaults to zero and increments by path" {
     var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);

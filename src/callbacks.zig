@@ -1,3 +1,4 @@
+const std = @import("std");
 const objc = @import("objc.zig");
 
 const command_modifier: objc.NSUInteger = 1 << 20;
@@ -140,9 +141,10 @@ fn tryLaunchNumberEvent(event: objc.Id) bool {
     return false;
 }
 
-fn isCommandCharacter(event: objc.Id, expected: u16) bool {
+fn isCommandCharacter(event: objc.Id, expected: u8) bool {
     const character = commandCharacter(event) orelse return false;
-    return character == expected or character == expected - 32;
+    if (character > std.math.maxInt(u8)) return false;
+    return std.ascii.toLower(@as(u8, @intCast(character))) == expected;
 }
 
 fn commandCharacter(event: objc.Id) ?u16 {
