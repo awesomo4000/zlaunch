@@ -84,13 +84,85 @@ pub const Mode = enum {
 pub const Rows = [Layout.visible_rows]Row;
 
 pub const Elements = struct {
-    panel: objc.Panel,
-    glass: objc.GlassSurface,
-    search_icon: objc.ImageView,
-    input: objc.TextField,
-    rows: Rows,
-    divider: objc.View,
-    mouse_target: objc.View,
+    panel: objc.Panel = .{},
+    glass: objc.GlassSurface = .{},
+    search_icon: objc.ImageView = .{},
+    input: objc.TextField = .{},
+    results: ResultList = .{},
+
+    pub fn applyTheme(self: Elements, app: objc.Application) void {
+        applyThemeViews(app, self.panel, self.glass, self.search_icon, self.input, self.results);
+    }
+
+    pub fn setMode(self: Elements, mode: Mode) void {
+        setModeViews(self.panel, self.glass, self.search_icon, self.input, self.results, mode);
+    }
+
+    pub fn positionPanel(self: Elements, mode: Mode) void {
+        positionPanelView(self.panel, mode);
+    }
+};
+
+pub const ResultList = struct {
+    rows: Rows = [_]Row{.{}} ** Layout.visible_rows,
+    divider: objc.View = .{},
+    mouse_target: objc.View = .{},
+
+    pub fn create(surface: objc.View, colors: theme.Theme) ResultList {
+        const divider = objc.View.create(.{
+            .frame = .{
+                .origin = .{ .x = Layout.List.x, .y = Layout.dividerY(.expanded) },
+                .size = .{ .width = Layout.List.width, .height = Layout.List.divider_height },
+            },
+            .background_color = colors.divider,
+        });
+        surface.addSubview(divider);
+
+        var rows: Rows = [_]Row{.{}} ** Layout.visible_rows;
+        var y: objc.CGFloat = Layout.rowStartY();
+        for (&rows, 0..) |*row, slot| {
+            row.* = Row.create(surface, y, slot, colors);
+            row.setHidden(true);
+            y -= Layout.ResultRow.height;
+        }
+
+        const mouse_target = objc.View.create(.{
+            .class_name = "ZLResultsMouseView",
+            .frame = resultsMouseFrame(),
+            .background_color = objc.Color.clear(),
+        });
+        mouse_target.addMouseMovedTrackingArea();
+        surface.addSubview(mouse_target);
+
+        return .{
+            .rows = rows,
+            .divider = divider,
+            .mouse_target = mouse_target,
+        };
+    }
+
+    pub fn applyTheme(self: ResultList, colors: theme.Theme) void {
+        for (self.rows) |row| row.applyTheme(colors);
+        self.divider.setFillColor(colors.divider);
+    }
+
+    pub fn setMode(self: ResultList, mode: Mode) void {
+        var y: objc.CGFloat = Layout.rowStartY();
+        for (self.rows) |row| {
+            row.setY(y);
+            if (mode == .compact) row.setHidden(true);
+            y -= Layout.ResultRow.height;
+        }
+
+        self.divider.setFrame(.{
+            .origin = .{ .x = Layout.List.x, .y = Layout.dividerY(mode) },
+            .size = .{ .width = Layout.List.width, .height = Layout.List.divider_height },
+        });
+        self.divider.setHidden(mode == .compact);
+
+        self.mouse_target.setFrame(resultsMouseFrame());
+        self.mouse_target.setHidden(mode == .compact);
+    }
 };
 
 pub const Row = struct {
@@ -113,7 +185,7 @@ pub const Row = struct {
             .frame = number_box_frame,
             .background_color = objc.Color.clear(),
         });
-        number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut_border);
+        number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut.border);
         number_box.setCornerRadius(Layout.ResultRow.shortcut_corner_radius);
         content.addSubview(number_box);
 
@@ -121,7 +193,7 @@ pub const Row = struct {
             .frame = numberTextFrame(number_box_frame),
             .text = rowNumberString(slot),
             .font_size = Layout.ResultRow.shortcut_font_size,
-            .text_color = colors.shortcut_text,
+            .text_color = colors.shortcut.text,
         });
         number_box.layer().addSublayer(number);
 
@@ -133,7 +205,7 @@ pub const Row = struct {
         const app_name = makeTextField(.{
             .origin = .{ .x = Layout.List.x + Layout.ResultRow.app_name_column_x, .y = y },
             .size = .{ .width = Layout.List.width - Layout.ResultRow.app_name_column_x, .height = Layout.ResultRow.height },
-        }, objc.Font.system(Layout.ResultRow.app_font_size), colors.text, objc.Color.clear(), false);
+        }, objc.Font.system(Layout.ResultRow.app_font_size), colors.row.text, objc.Color.clear(), false);
         content.addSubview(app_name);
 
         return .{
@@ -143,10 +215,6 @@ pub const Row = struct {
             .icon = icon,
             .app_name = app_name,
         };
-    }
-
-    pub fn isEmpty(self: Row) bool {
-        return self.app_name.isNil();
     }
 
     pub fn showApp(self: Row, arena: std.mem.Allocator, name: []const u8, icon: objc.Image) void {
@@ -163,17 +231,21 @@ pub const Row = struct {
 
     pub fn setSelected(self: Row, selected: bool, colors: theme.Theme) void {
         if (selected) {
-            self.app_name.setTextColor(colors.selected_text);
-            self.background.setFillColor(colors.selected);
-            self.number_box.setFillColor(colors.shortcut_fill);
-            self.number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut_fill);
+            self.app_name.setTextColor(colors.row.selected_text);
+            self.background.setFillColor(colors.row.selected);
+            self.number_box.setFillColor(colors.shortcut.fill);
+            self.number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut.fill);
             return;
         }
 
         self.background.setFillColor(objc.Color.clear());
         self.number_box.setFillColor(objc.Color.clear());
-        self.number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut_border);
-        self.app_name.setTextColor(colors.muted);
+        self.number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut.border);
+        self.app_name.setTextColor(colors.row.muted);
+    }
+
+    pub fn applyTheme(self: Row, colors: theme.Theme) void {
+        self.number.setTextColor(colors.shortcut.text);
     }
 
     pub fn setHidden(self: Row, hidden: bool) void {
@@ -225,15 +297,15 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
             .origin = .{ .x = 0, .y = 0 },
             .size = .{ .width = Layout.Panel.width, .height = Layout.panel_height },
         },
-        .tint_color = colors.panel,
+        .tint_color = colors.glass.tint,
         .corner_radius = Layout.Panel.corner_radius,
-        .style = colors.glass_style,
+        .style = colors.glass.style,
     });
     content.addSubview(glass);
     const surface = glass.contentView();
 
-    const input = makeTextField(searchTextFrame(.expanded), objc.Font.system(Layout.Search.font_size), colors.text, colors.input, true);
-    input.setBorder(Layout.Search.border_width, colors.accent);
+    const input = makeTextField(searchTextFrame(.expanded), objc.Font.system(Layout.Search.font_size), colors.search.text, colors.search.fill, true);
+    input.setBorder(Layout.Search.border_width, colors.search.accent);
     input.setCornerRadius(Layout.Search.corner_radius);
     input.setDelegate(delegate);
     surface.addSubview(input);
@@ -245,66 +317,38 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
             objc.String.fromStatic("Search"),
         ),
     });
-    search_icon.setContentTintColor(colors.muted);
+    search_icon.setContentTintColor(colors.search.icon);
     surface.addSubview(search_icon);
 
-    const divider = objc.View.create(.{
-        .frame = .{
-            .origin = .{ .x = Layout.List.x, .y = Layout.dividerY(.expanded) },
-            .size = .{ .width = Layout.List.width, .height = Layout.List.divider_height },
-        },
-        .background_color = colors.divider,
-    });
-    surface.addSubview(divider);
+    const results = ResultList.create(surface, colors);
 
-    var rows: Rows = [_]Row{.{}} ** Layout.visible_rows;
-    var y: objc.CGFloat = Layout.rowStartY();
-    for (&rows, 0..) |*row, slot| {
-        row.* = Row.create(surface, y, slot, colors);
-        row.setHidden(true);
-        y -= Layout.ResultRow.height;
-    }
-
-    const mouse_target = objc.View.create(.{
-        .class_name = "ZLResultsMouseView",
-        .frame = resultsMouseFrame(),
-        .background_color = objc.Color.clear(),
-    });
-    mouse_target.addMouseMovedTrackingArea();
-    surface.addSubview(mouse_target);
-
-    setMode(panel, glass, search_icon, input, rows, divider, mouse_target, .compact);
+    setModeViews(panel, glass, search_icon, input, results, .compact);
 
     return .{
         .panel = panel,
         .glass = glass,
         .search_icon = search_icon,
         .input = input,
-        .rows = rows,
-        .divider = divider,
-        .mouse_target = mouse_target,
+        .results = results,
     };
 }
 
-pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, rows: Rows, divider: objc.View) void {
+fn applyThemeViews(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, results: ResultList) void {
     const colors = theme.Theme.current(app);
     panel.setBackgroundColor(objc.Color.clear());
     panel.contentView().layer().setBackgroundColor(objc.Color.clear().cgColor());
-    glass.setStyle(colors.glass_style);
-    glass.setTintColor(colors.panel);
+    glass.setStyle(colors.glass.style);
+    glass.setTintColor(colors.glass.tint);
     glass.setCornerRadius(Layout.Panel.corner_radius);
-    input.setTextColor(colors.text);
-    input.setFillColor(colors.input);
-    input.setBorder(Layout.Search.border_width, colors.accent);
+    input.setTextColor(colors.search.text);
+    input.setFillColor(colors.search.fill);
+    input.setBorder(Layout.Search.border_width, colors.search.accent);
     input.setCornerRadius(Layout.Search.corner_radius);
-    search_icon.setContentTintColor(colors.muted);
-    for (rows) |row| {
-        row.number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut_border);
-    }
-    divider.setFillColor(colors.divider);
+    search_icon.setContentTintColor(colors.search.icon);
+    results.applyTheme(colors);
 }
 
-pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, rows: Rows, divider: objc.View, mouse_target: objc.View, mode: Mode) void {
+fn setModeViews(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, results: ResultList, mode: Mode) void {
     const height = Layout.panelHeight(mode);
     var frame = panel.frame();
     const top = frame.origin.y + frame.size.height;
@@ -318,22 +362,7 @@ pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.Im
 
     input.setFrame(searchTextFrame(mode));
     search_icon.setFrame(searchIconFrame(mode));
-
-    var y: objc.CGFloat = Layout.rowStartY();
-    for (rows) |row| {
-        row.setY(y);
-        if (mode == .compact) row.setHidden(true);
-        y -= Layout.ResultRow.height;
-    }
-
-    divider.setFrame(.{
-        .origin = .{ .x = Layout.List.x, .y = Layout.dividerY(mode) },
-        .size = .{ .width = Layout.List.width, .height = Layout.List.divider_height },
-    });
-    divider.setHidden(mode == .compact);
-
-    mouse_target.setFrame(resultsMouseFrame());
-    mouse_target.setHidden(mode == .compact);
+    results.setMode(mode);
 }
 
 pub fn visibleRowAtY(y: objc.CGFloat) ?usize {
@@ -346,7 +375,7 @@ pub fn visibleRowAtY(y: objc.CGFloat) ?usize {
     return Layout.visible_rows - 1 - row_from_bottom;
 }
 
-pub fn positionPanel(panel: objc.Panel, mode: Mode) void {
+fn positionPanelView(panel: objc.Panel, mode: Mode) void {
     const frame = objc.Screen.main().visibleFrame();
     const height = Layout.panelHeight(mode);
     panel.setFrameOrigin(.{

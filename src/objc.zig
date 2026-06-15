@@ -508,14 +508,14 @@ pub const View = struct {
 pub const GlassSurface = struct {
     object: Object = .{},
     content: View = .{},
-    kind: Kind = .visual_effect,
+    backend: Backend = .visual_effect,
 
-    const Kind = enum {
+    pub const Backend = enum {
         native_glass,
         visual_effect,
     };
 
-    pub const Style = enum(NSInteger) {
+    pub const NativeStyle = enum(NSInteger) {
         regular = 0,
         clear = 1,
     };
@@ -524,7 +524,7 @@ pub const GlassSurface = struct {
         frame: Rect,
         tint_color: Color,
         corner_radius: CGFloat,
-        style: Style = .regular,
+        style: NativeStyle = .regular,
     };
 
     pub fn create(options: Options) GlassSurface {
@@ -538,9 +538,9 @@ pub const GlassSurface = struct {
             const glass = GlassSurface{
                 .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)),
                 .content = content,
-                .kind = .native_glass,
+                .backend = .native_glass,
             };
-            glass.setNativeStyle(options.style);
+            glass.applyNativeStyle(options.style);
             glass.setTintColor(options.tint_color);
             glass.setCornerRadius(options.corner_radius);
             glass.setContentView(content);
@@ -574,14 +574,14 @@ pub const GlassSurface = struct {
         const layer = Layer{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
         layer.setCornerRadius(radius);
         layer.setMasksToBounds(true);
-        switch (self.kind) {
+        switch (self.backend) {
             .native_glass => msgSendVoidCGFloat(self.object.id, sel("setCornerRadius:"), radius),
             .visual_effect => {},
         }
     }
 
     pub fn setTintColor(self: GlassSurface, color: Color) void {
-        switch (self.kind) {
+        switch (self.backend) {
             .native_glass => msgSendVoidId(self.object.id, sel("setTintColor:"), color.object.id),
             .visual_effect => {
                 const layer = Layer{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
@@ -590,9 +590,9 @@ pub const GlassSurface = struct {
         }
     }
 
-    pub fn setStyle(self: GlassSurface, style: Style) void {
-        switch (self.kind) {
-            .native_glass => self.setNativeStyle(style),
+    pub fn setStyle(self: GlassSurface, style: NativeStyle) void {
+        switch (self.backend) {
+            .native_glass => self.applyNativeStyle(style),
             .visual_effect => {},
         }
     }
@@ -605,7 +605,7 @@ pub const GlassSurface = struct {
         msgSendVoidId(self.object.id, sel("setContentView:"), view.object.id);
     }
 
-    fn setNativeStyle(self: GlassSurface, style: Style) void {
+    fn applyNativeStyle(self: GlassSurface, style: NativeStyle) void {
         msgSendVoidInt(self.object.id, sel("setStyle:"), @intFromEnum(style));
     }
 

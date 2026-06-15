@@ -28,13 +28,7 @@ const Launcher = struct {
     highlighted: usize = 0,
     scroll_offset: usize = 0,
     app: objc.Application = .{},
-    panel: objc.Panel = .{},
-    glass: objc.GlassSurface = .{},
-    search_icon: objc.ImageView = .{},
-    input: objc.TextField = .{},
-    rows: ui.Rows = [_]ui.Row{.{}} ** ui.Layout.visible_rows,
-    divider: objc.View = .{},
-    mouse_target: objc.View = .{},
+    elements: ui.Elements = .{},
     mode: ui.Mode = .compact,
     delegate: objc.Object = .{},
     previous_app: objc.RunningApplication = .{},
@@ -56,14 +50,7 @@ const Launcher = struct {
     }
 
     fn buildUi(self: *Launcher) void {
-        const elements = ui.build(self.app, self.delegate);
-        self.panel = elements.panel;
-        self.glass = elements.glass;
-        self.search_icon = elements.search_icon;
-        self.input = elements.input;
-        self.rows = elements.rows;
-        self.divider = elements.divider;
-        self.mouse_target = elements.mouse_target;
+        self.elements = ui.build(self.app, self.delegate);
     }
 
     fn show(self: *Launcher) void {
@@ -72,23 +59,23 @@ const Launcher = struct {
         self.releasePreviousApp();
         self.previous_app = objc.Workspace.shared().frontmostApplication().retain();
         self.dismissing = false;
-        self.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
+        self.elements.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
         self.query.clearRetainingCapacity();
         self.setQuery("");
         self.setMode(.compact);
         self.positionPanel();
-        self.panel.makeKeyAndOrderFront();
+        self.elements.panel.makeKeyAndOrderFront();
         self.app.activateIgnoringOtherApps(true);
-        self.panel.makeFirstResponder(self.input.object);
-        self.input.setInsertionPointColor(theme.Theme.current(self.app).cursor);
+        self.elements.panel.makeFirstResponder(self.elements.input.object);
+        self.elements.input.setInsertionPointColor(theme.Theme.current(self.app).search.cursor);
     }
 
     fn dismiss(self: *Launcher, behavior: DismissBehavior) void {
         if (self.dismissing) return;
         self.dismissing = true;
-        self.panel.orderOut();
+        self.elements.panel.orderOut();
         objc.Cursor.arrow().set();
-        self.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
+        self.elements.input.setStringValue(objc.String.fromUtf8(self.arena, ""));
         self.query.clearRetainingCapacity();
         self.setQuery("");
         self.setMode(.compact);
@@ -100,7 +87,7 @@ const Launcher = struct {
     }
 
     fn applyTheme(self: *Launcher) void {
-        ui.applyTheme(self.app, self.panel, self.glass, self.search_icon, self.input, self.rows, self.divider);
+        self.elements.applyTheme(self.app);
     }
 
     fn restorePreviousApp(self: *Launcher) void {
@@ -118,11 +105,11 @@ const Launcher = struct {
     }
 
     fn positionPanel(self: *Launcher) void {
-        ui.positionPanel(self.panel, self.mode);
+        self.elements.positionPanel(self.mode);
     }
 
     fn setQueryFromInput(self: *Launcher) void {
-        const value = self.input.stringValue();
+        const value = self.elements.input.stringValue();
         self.setQuery(std.mem.span(value.utf8()));
         self.syncModeWithMatches();
         self.updateRows();
@@ -243,7 +230,7 @@ const Launcher = struct {
         const completion = self.index.longestCommonPrefix() orelse return;
         if (completion.len <= self.query.items.len) return;
 
-        self.input.setStringValue(objc.String.fromUtf8(self.arena, completion));
+        self.elements.input.setStringValue(objc.String.fromUtf8(self.arena, completion));
         self.setQuery(completion);
         self.syncModeWithMatches();
         self.updateRows();
@@ -256,7 +243,7 @@ const Launcher = struct {
 
     fn setMode(self: *Launcher, mode: ui.Mode) void {
         self.mode = mode;
-        ui.setMode(self.panel, self.glass, self.search_icon, self.input, self.rows, self.divider, self.mouse_target, mode);
+        self.elements.setMode(mode);
     }
 
     fn updateRows(self: *Launcher) void {
@@ -279,7 +266,7 @@ const Launcher = struct {
     }
 
     fn clearRows(self: *Launcher) void {
-        for (self.rows) |row| row.clear(self.arena);
+        for (self.elements.results.rows) |row| row.clear(self.arena);
     }
 
     fn drawRows(self: *Launcher) void {
@@ -288,8 +275,7 @@ const Launcher = struct {
         objc.Transaction.setDisableActions(true);
 
         const colors = theme.Theme.current(self.app);
-        for (self.rows, 0..) |row, i| {
-            if (row.isEmpty()) continue;
+        for (self.elements.results.rows, 0..) |row, i| {
             const match_index = self.scroll_offset + i;
             if (self.index.appForMatch(match_index)) |matched_app| {
                 row.showApp(self.arena, matched_app.name, self.icons.iconForPath(matched_app.path));
@@ -306,7 +292,7 @@ const Launcher = struct {
         objc.Transaction.setDisableActions(true);
 
         const colors = theme.Theme.current(self.app);
-        for (self.rows, 0..) |row, i| {
+        for (self.elements.results.rows, 0..) |row, i| {
             const match_index = self.scroll_offset + i;
             if (match_index >= self.index.count()) continue;
             row.setSelected(match_index == self.highlighted, colors);
