@@ -1,5 +1,6 @@
 const std = @import("std");
 const objc = @import("objc.zig");
+const ui = @import("ui.zig");
 
 const command_modifier: objc.NSUInteger = 1 << 20;
 
@@ -9,6 +10,7 @@ pub const Handler = struct {
     move_highlight: *const fn (*anyopaque, i32) void,
     launch_highlighted: *const fn (*anyopaque) void,
     launch_visible_row: *const fn (*anyopaque, usize) bool,
+    hover_visible_row: *const fn (*anyopaque, usize) void,
     autocomplete: *const fn (*anyopaque) void,
     refresh_apps: *const fn (*anyopaque) void,
     dismiss: *const fn (*anyopaque) void,
@@ -58,6 +60,7 @@ pub fn install(app_handler: Handler) objc.Object {
     command_selectors = .init();
     registerPanelClass();
     registerInputTextFieldClass();
+    registerResultsMouseViewClass();
     return registerDelegateClass();
 }
 
@@ -75,10 +78,24 @@ fn returnYes(_: objc.Id, _: objc.Selector) callconv(.c) objc.BOOL {
     return true;
 }
 
+fn returnYesForEvent(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) objc.BOOL {
+    return true;
+}
+
 fn registerInputTextFieldClass() void {
     const class = objc.allocateClassPair(objc.cls("NSTextField"), "ZLInputTextField");
     if (class != null) {
         _ = objc.addMethod(class, objc.sel("keyDown:"), &inputKeyDown, "v@:@");
+        objc.registerClassPair(class);
+    }
+}
+
+fn registerResultsMouseViewClass() void {
+    const class = objc.allocateClassPair(objc.cls("NSView"), "ZLResultsMouseView");
+    if (class != null) {
+        _ = objc.addMethod(class, objc.sel("acceptsFirstMouse:"), &returnYesForEvent, "B@:@");
+        _ = objc.addMethod(class, objc.sel("mouseMoved:"), &resultsMouseMoved, "v@:@");
+        _ = objc.addMethod(class, objc.sel("mouseDown:"), &resultsMouseDown, "v@:@");
         objc.registerClassPair(class);
     }
 }
@@ -92,6 +109,24 @@ fn registerDelegateClass() objc.Object {
         objc.registerClassPair(class);
     }
     return objc.Object.new("ZLDelegate");
+}
+
+fn resultsMouseMoved(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) void {
+    const visible_index = visibleRowForMouseEvent(self, event) orelse return;
+    handler.hover_visible_row(handler.context, visible_index);
+}
+
+fn resultsMouseDown(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) void {
+    const visible_index = visibleRowForMouseEvent(self, event) orelse return;
+    _ = handler.launch_visible_row(handler.context, visible_index);
+}
+
+fn visibleRowForMouseEvent(view: objc.Id, event: objc.Id) ?usize {
+    if (view == null or event == null) return null;
+
+    const window_point = objc.msgSendPoint0(event, objc.sel("locationInWindow"));
+    const local_point = objc.msgSendPointPointId(view, objc.sel("convertPoint:fromView:"), window_point, null);
+    return ui.visibleRowAtY(local_point.y);
 }
 
 fn controlTextDidChange(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) void {

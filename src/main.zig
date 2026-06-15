@@ -34,6 +34,7 @@ const Launcher = struct {
     input: objc.TextField = .{},
     rows: ui.Rows = [_]ui.Row{.{}} ** ui.Layout.visible_rows,
     divider: objc.View = .{},
+    mouse_target: objc.View = .{},
     mode: ui.Mode = .compact,
     delegate: objc.Object = .{},
     previous_app: objc.RunningApplication = .{},
@@ -62,6 +63,7 @@ const Launcher = struct {
         self.input = elements.input;
         self.rows = elements.rows;
         self.divider = elements.divider;
+        self.mouse_target = elements.mouse_target;
     }
 
     fn show(self: *Launcher) void {
@@ -164,6 +166,16 @@ const Launcher = struct {
         self.updateRows();
     }
 
+    fn hoverVisibleRow(self: *Launcher, visible_index: usize) void {
+        if (self.mode == .compact) return;
+        const match_index = self.scroll_offset + visible_index;
+        if (match_index >= self.index.count()) return;
+        if (match_index == self.highlighted) return;
+
+        self.highlighted = match_index;
+        self.updateRows();
+    }
+
     fn keepHighlightVisible(self: *Launcher) void {
         self.scroll_offset = scrollOffsetForHighlight(self.highlighted, self.scroll_offset, ui.Layout.visible_rows);
     }
@@ -238,7 +250,7 @@ const Launcher = struct {
 
     fn setMode(self: *Launcher, mode: ui.Mode) void {
         self.mode = mode;
-        ui.setMode(self.panel, self.glass, self.search_icon, self.input, self.rows, self.divider, mode);
+        ui.setMode(self.panel, self.glass, self.search_icon, self.input, self.rows, self.divider, self.mouse_target, mode);
     }
 
     fn updateRows(self: *Launcher) void {
@@ -301,6 +313,7 @@ pub fn main(init_context: std.process.Init) !void {
         .move_highlight = onMoveHighlight,
         .launch_highlighted = onLaunchHighlighted,
         .launch_visible_row = onLaunchVisibleRow,
+        .hover_visible_row = onHoverVisibleRow,
         .autocomplete = onAutocomplete,
         .refresh_apps = onRefreshApps,
         .dismiss = onDismiss,
@@ -344,6 +357,11 @@ fn onLaunchHighlighted(context: *anyopaque) void {
 fn onLaunchVisibleRow(context: *anyopaque, visible_index: usize) bool {
     const app_launcher: *Launcher = @ptrCast(@alignCast(context));
     return app_launcher.launchVisibleRow(visible_index);
+}
+
+fn onHoverVisibleRow(context: *anyopaque, visible_index: usize) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.hoverVisibleRow(visible_index);
 }
 
 fn onAutocomplete(context: *anyopaque) void {

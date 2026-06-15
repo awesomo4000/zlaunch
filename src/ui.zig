@@ -90,6 +90,7 @@ pub const Elements = struct {
     input: objc.TextField,
     rows: Rows,
     divider: objc.View,
+    mouse_target: objc.View,
 };
 
 pub const Row = struct {
@@ -216,6 +217,7 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
     panel.setBackgroundColor(objc.Color.clear());
     panel.setMovableByWindowBackground(true);
     panel.setHidesOnDeactivate(true);
+    panel.setAcceptsMouseMovedEvents(true);
     panel.setLevel(.floating);
     panel.setDelegate(delegate);
 
@@ -268,9 +270,25 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
         y -= Layout.ResultRow.height;
     }
 
-    setMode(panel, glass, search_icon, input, rows, divider, .compact);
+    const mouse_target = objc.View.create(.{
+        .class_name = "ZLResultsMouseView",
+        .frame = resultsMouseFrame(),
+        .background_color = objc.Color.clear(),
+    });
+    mouse_target.addMouseMovedTrackingArea();
+    surface.addSubview(mouse_target);
 
-    return .{ .panel = panel, .glass = glass, .search_icon = search_icon, .input = input, .rows = rows, .divider = divider };
+    setMode(panel, glass, search_icon, input, rows, divider, mouse_target, .compact);
+
+    return .{
+        .panel = panel,
+        .glass = glass,
+        .search_icon = search_icon,
+        .input = input,
+        .rows = rows,
+        .divider = divider,
+        .mouse_target = mouse_target,
+    };
 }
 
 pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, rows: Rows, divider: objc.View) void {
@@ -291,7 +309,7 @@ pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSur
     divider.setFillColor(colors.divider);
 }
 
-pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, rows: Rows, divider: objc.View, mode: Mode) void {
+pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, rows: Rows, divider: objc.View, mouse_target: objc.View, mode: Mode) void {
     const height = Layout.panelHeight(mode);
     var frame = panel.frame();
     const top = frame.origin.y + frame.size.height;
@@ -318,6 +336,19 @@ pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.Im
         .size = .{ .width = Layout.List.width, .height = Layout.List.divider_height },
     });
     divider.setHidden(mode == .compact);
+
+    mouse_target.setFrame(resultsMouseFrame());
+    mouse_target.setHidden(mode == .compact);
+}
+
+pub fn visibleRowAtY(y: objc.CGFloat) ?usize {
+    if (y < 0) return null;
+
+    const total_height = Layout.ResultRow.height * @as(objc.CGFloat, @floatFromInt(Layout.visible_rows));
+    if (y >= total_height) return null;
+
+    const row_from_bottom: usize = @intFromFloat(y / Layout.ResultRow.height);
+    return Layout.visible_rows - 1 - row_from_bottom;
 }
 
 pub fn positionPanel(panel: objc.Panel, mode: Mode) void {
@@ -333,6 +364,17 @@ fn rowFrame(y: objc.CGFloat) objc.Rect {
     return .{
         .origin = .{ .x = Layout.List.x, .y = y },
         .size = .{ .width = Layout.List.width, .height = Layout.ResultRow.height },
+    };
+}
+
+fn resultsMouseFrame() objc.Rect {
+    const height = Layout.ResultRow.height * @as(objc.CGFloat, @floatFromInt(Layout.visible_rows));
+    return .{
+        .origin = .{
+            .x = Layout.List.x,
+            .y = Layout.rowStartY() - Layout.ResultRow.height * @as(objc.CGFloat, @floatFromInt(Layout.visible_rows - 1)),
+        },
+        .size = .{ .width = Layout.List.width, .height = height },
     };
 }
 
@@ -401,4 +443,17 @@ fn makeTextField(rect: objc.Rect, font: objc.Font, text_color: objc.Color, backg
         .background_color = background_color,
         .editable = editable,
     });
+}
+
+test "visible row hit testing maps from top to bottom" {
+    try std.testing.expectEqual(@as(?usize, 4), visibleRowAtY(0));
+    try std.testing.expectEqual(@as(?usize, 4), visibleRowAtY(Layout.ResultRow.height - 1));
+    try std.testing.expectEqual(@as(?usize, 3), visibleRowAtY(Layout.ResultRow.height));
+    try std.testing.expectEqual(@as(?usize, 0), visibleRowAtY(Layout.ResultRow.height * 4));
+}
+
+test "visible row hit testing rejects outside list" {
+    const height = Layout.ResultRow.height * @as(objc.CGFloat, @floatFromInt(Layout.visible_rows));
+    try std.testing.expectEqual(@as(?usize, null), visibleRowAtY(-1));
+    try std.testing.expectEqual(@as(?usize, null), visibleRowAtY(height));
 }

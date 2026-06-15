@@ -390,6 +390,10 @@ pub const Panel = struct {
         msgSendVoidBool(self.object.id, sel("setHidesOnDeactivate:"), value);
     }
 
+    pub fn setAcceptsMouseMovedEvents(self: Panel, value: BOOL) void {
+        msgSendVoidBool(self.object.id, sel("setAcceptsMouseMovedEvents:"), value);
+    }
+
     pub fn setLevel(self: Panel, level: Level) void {
         msgSendVoidInt(self.object.id, sel("setLevel:"), @intFromEnum(level));
     }
@@ -431,12 +435,13 @@ pub const View = struct {
     object: Object = .{},
 
     pub const Options = struct {
+        class_name: [*:0]const u8 = "NSView",
         frame: Rect,
         background_color: Color,
     };
 
     pub fn create(options: Options) View {
-        const allocated = Object.alloc("NSView");
+        const allocated = Object.alloc(options.class_name);
         const view = View{ .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)) };
         view.setWantsLayer(true);
         view.setFillColor(options.background_color);
@@ -476,6 +481,28 @@ pub const View = struct {
     pub fn addSubview(self: View, view: anytype) void {
         msgSendVoidId(self.object.id, sel("addSubview:"), view.object.id);
     }
+
+    pub fn addMouseMovedTrackingArea(self: View) void {
+        const options = TrackingAreaOptions.mouse_moved |
+            TrackingAreaOptions.active_in_key_window |
+            TrackingAreaOptions.in_visible_rect;
+        const tracking_area = Object.wrap(msgSendIdRectUIntegerIdId(
+            Object.alloc("NSTrackingArea").id,
+            sel("initWithRect:options:owner:userInfo:"),
+            .{ .origin = .{ .x = 0, .y = 0 }, .size = .{ .width = 0, .height = 0 } },
+            options,
+            self.object.id,
+            null,
+        ));
+        msgSendVoidId(self.object.id, sel("addTrackingArea:"), tracking_area.id);
+        tracking_area.release();
+    }
+
+    const TrackingAreaOptions = struct {
+        const mouse_moved: NSUInteger = 1 << 1;
+        const active_in_key_window: NSUInteger = 1 << 5;
+        const in_visible_rect: NSUInteger = 1 << 9;
+    };
 };
 
 pub const GlassSurface = struct {
@@ -1095,10 +1122,22 @@ pub fn msgSendCGFloat0(recv: Id, op: Selector) CGFloat {
     return f(recv, op);
 }
 
+pub fn msgSendPoint0(recv: Id, op: Selector) Point {
+    const Fn = *const fn (Id, Selector) callconv(.c) Point;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op);
+}
+
 pub fn msgSendVoidPoint(recv: Id, op: Selector, point: Point) void {
     const Fn = *const fn (Id, Selector, Point) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
     f(recv, op, point);
+}
+
+pub fn msgSendPointPointId(recv: Id, op: Selector, point: Point, arg: Id) Point {
+    const Fn = *const fn (Id, Selector, Point, Id) callconv(.c) Point;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, point, arg);
 }
 
 pub fn msgSendVoidRect(recv: Id, op: Selector, rect: Rect) void {
@@ -1151,6 +1190,12 @@ pub fn msgSendIdRect(recv: Id, op: Selector, rect: Rect) Id {
     const Fn = *const fn (Id, Selector, Rect) callconv(.c) Id;
     const f: Fn = @ptrCast(&objc_msgSend);
     return f(recv, op, rect);
+}
+
+pub fn msgSendIdRectUIntegerIdId(recv: Id, op: Selector, rect: Rect, arg1: NSUInteger, arg2: Id, arg3: Id) Id {
+    const Fn = *const fn (Id, Selector, Rect, NSUInteger, Id, Id) callconv(.c) Id;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, rect, arg1, arg2, arg3);
 }
 
 pub fn msgSendIdRectStyleBackingDefer(recv: Id, op: Selector, rect: Rect, style: NSUInteger, backing: NSUInteger, should_defer: BOOL) Id {
