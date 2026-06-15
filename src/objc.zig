@@ -539,6 +539,20 @@ pub const Layer = struct {
     }
 };
 
+pub const Transaction = struct {
+    pub fn begin() void {
+        msgSendVoid0(cls("CATransaction"), sel("begin"));
+    }
+
+    pub fn commit() void {
+        msgSendVoid0(cls("CATransaction"), sel("commit"));
+    }
+
+    pub fn setDisableActions(value: BOOL) void {
+        msgSendVoidBool(cls("CATransaction"), sel("setDisableActions:"), value);
+    }
+};
+
 pub const TextLayer = struct {
     object: Object = .{},
 

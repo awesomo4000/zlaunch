@@ -260,6 +260,10 @@ const Launcher = struct {
     }
 
     fn drawRows(self: *Launcher) void {
+        objc.Transaction.begin();
+        defer objc.Transaction.commit();
+        objc.Transaction.setDisableActions(true);
+
         const colors = theme.Theme.current(self.app);
         for (self.rows, 0..) |row, i| {
             if (row.isEmpty()) continue;
