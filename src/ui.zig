@@ -67,7 +67,7 @@ pub const Row = struct {
     background: objc.View = .{},
     number_box: objc.View = .{},
     number: objc.TextLayer = .{},
-    icon: objc.View = .{},
+    icon: objc.ImageView = .{},
     app_name: objc.TextField = .{},
     selected_bar: objc.View = .{},
 
@@ -105,12 +105,9 @@ pub const Row = struct {
         });
         number_box.layer().addSublayer(number);
 
-        const icon = objc.View.create(.{
+        const icon = objc.ImageView.create(.{
             .frame = iconFrame(y),
-            .background_color = objc.Color.clear(),
         });
-        icon.setBorder(1.5, colors.accent);
-        icon.setCornerRadius(Layout.icon_size / 2);
         content.addSubview(icon);
 
         const app_name = makeTextField(.{
@@ -135,18 +132,19 @@ pub const Row = struct {
 
     pub fn setAccent(self: Row, color: objc.Color) void {
         self.selected_bar.setFillColor(color);
-        self.icon.setBorder(1.5, color);
     }
 
-    pub fn showApp(self: Row, arena: std.mem.Allocator, slot: usize, name: []const u8) void {
+    pub fn showApp(self: Row, arena: std.mem.Allocator, slot: usize, name: []const u8, icon: objc.Image) void {
         var number_buf: [1]u8 = .{@intCast('1' + slot)};
         self.setHidden(false);
         self.number.setString(objc.String.fromUtf8(arena, &number_buf));
+        self.icon.setImage(icon);
         self.app_name.setStringValue(objc.String.fromUtf8(arena, name));
     }
 
     pub fn clear(self: Row, arena: std.mem.Allocator) void {
         self.number.setString(objc.String.fromUtf8(arena, ""));
+        self.icon.setImage(.nil());
         self.app_name.setStringValue(objc.String.fromUtf8(arena, ""));
         self.setHidden(true);
     }

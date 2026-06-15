@@ -3,6 +3,7 @@ const app_index = @import("app_index.zig");
 const callbacks = @import("callbacks.zig");
 const config = @import("config.zig");
 const hotkey = @import("hotkey.zig");
+const icon_cache = @import("icon_cache.zig");
 const objc = @import("objc.zig");
 const stats = @import("stats.zig");
 const theme = @import("theme.zig");
@@ -21,6 +22,7 @@ const Launcher = struct {
     arena: std.mem.Allocator,
     io: std.Io,
     index: app_index.AppIndex,
+    icons: icon_cache.IconCache,
     launch_stats: stats.Stats = .{},
     query: std.ArrayList(u8) = .empty,
     highlighted: usize = 0,
@@ -44,6 +46,7 @@ const Launcher = struct {
             .arena = arena,
             .io = init_context.io,
             .index = try app_index.AppIndex.init(arena, init_context.io, init_context.environ_map),
+            .icons = icon_cache.IconCache.init(arena),
             .launch_stats = try stats.Stats.load(arena, init_context.io, init_context.environ_map),
             .app = app,
         };
@@ -133,6 +136,7 @@ const Launcher = struct {
         var query_buf: [256]u8 = undefined;
         const query = self.copyCurrentQuery(&query_buf);
         self.index.refresh() catch return;
+        self.icons.clear();
         self.setQuery(query);
         self.syncModeWithMatches();
     }
@@ -261,7 +265,7 @@ const Launcher = struct {
             if (row.isEmpty()) continue;
             const match_index = self.scroll_offset + i;
             if (self.index.appForMatch(match_index)) |matched_app| {
-                row.showApp(self.arena, i, matched_app.name);
+                row.showApp(self.arena, i, matched_app.name, self.icons.iconForPath(matched_app.path));
                 row.setSelected(match_index == self.highlighted, colors);
             } else {
                 row.clear(self.arena);

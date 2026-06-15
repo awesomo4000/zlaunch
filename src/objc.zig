@@ -260,6 +260,26 @@ pub const Workspace = struct {
     pub fn frontmostApplication(self: Workspace) RunningApplication {
         return .{ .object = .wrap(msgSendId0(self.object.id, sel("frontmostApplication"))) };
     }
+
+    pub fn iconForFile(self: Workspace, path: String) Image {
+        return .{ .object = .wrap(msgSendIdId(self.object.id, sel("iconForFile:"), path.object.id)) };
+    }
+};
+
+pub const Image = struct {
+    object: Object = .{},
+
+    pub fn nil() Image {
+        return .{};
+    }
+
+    pub fn retain(self: Image) Image {
+        return .{ .object = self.object.retain() };
+    }
+
+    pub fn release(self: Image) void {
+        self.object.release();
+    }
 };
 
 pub const RunningApplication = struct {
@@ -444,6 +464,46 @@ pub const View = struct {
 
     pub fn addSubview(self: View, view: anytype) void {
         msgSendVoidId(self.object.id, sel("addSubview:"), view.object.id);
+    }
+};
+
+pub const ImageView = struct {
+    object: Object = .{},
+
+    pub const ImageScaling = enum(NSUInteger) {
+        proportionally_down = 0,
+        axes_independently = 1,
+        none = 2,
+        proportionally_up_or_down = 3,
+    };
+
+    pub const Options = struct {
+        frame: Rect,
+        image: Image = .{},
+    };
+
+    pub fn create(options: Options) ImageView {
+        const allocated = Object.alloc("NSImageView");
+        const view = ImageView{ .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)) };
+        view.setImageScaling(.proportionally_up_or_down);
+        view.setImage(options.image);
+        return view;
+    }
+
+    pub fn setImage(self: ImageView, image: Image) void {
+        msgSendVoidId(self.object.id, sel("setImage:"), image.object.id);
+    }
+
+    pub fn setImageScaling(self: ImageView, scaling: ImageScaling) void {
+        msgSendVoidUInteger(self.object.id, sel("setImageScaling:"), @intFromEnum(scaling));
+    }
+
+    pub fn setHidden(self: ImageView, value: BOOL) void {
+        msgSendVoidBool(self.object.id, sel("setHidden:"), value);
+    }
+
+    pub fn setFrame(self: ImageView, rect: Rect) void {
+        msgSendVoidRect(self.object.id, sel("setFrame:"), rect);
     }
 };
 
