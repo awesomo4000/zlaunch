@@ -157,13 +157,19 @@ const Launcher = struct {
     fn moveHighlight(self: *Launcher, delta: i32) void {
         if (self.mode == .compact) return;
         if (self.index.count() == 0) return;
+        const old_scroll_offset = self.scroll_offset;
+
         if (delta < 0) {
             if (self.highlighted > 0) self.highlighted -= 1;
         } else if (self.highlighted + 1 < self.index.count()) {
             self.highlighted += 1;
         }
         self.keepHighlightVisible();
-        self.updateRows();
+        if (self.scroll_offset == old_scroll_offset) {
+            self.updateSelection();
+        } else {
+            self.updateRows();
+        }
     }
 
     fn hoverVisibleRow(self: *Launcher, visible_index: usize) void {
@@ -173,7 +179,7 @@ const Launcher = struct {
         if (match_index == self.highlighted) return;
 
         self.highlighted = match_index;
-        self.updateRows();
+        self.updateSelection();
     }
 
     fn keepHighlightVisible(self: *Launcher) void {
@@ -286,11 +292,24 @@ const Launcher = struct {
             if (row.isEmpty()) continue;
             const match_index = self.scroll_offset + i;
             if (self.index.appForMatch(match_index)) |matched_app| {
-                row.showApp(self.arena, i, matched_app.name, self.icons.iconForPath(matched_app.path));
+                row.showApp(self.arena, matched_app.name, self.icons.iconForPath(matched_app.path));
                 row.setSelected(match_index == self.highlighted, colors);
             } else {
                 row.clear(self.arena);
             }
+        }
+    }
+
+    fn updateSelection(self: *Launcher) void {
+        objc.Transaction.begin();
+        defer objc.Transaction.commit();
+        objc.Transaction.setDisableActions(true);
+
+        const colors = theme.Theme.current(self.app);
+        for (self.rows, 0..) |row, i| {
+            const match_index = self.scroll_offset + i;
+            if (match_index >= self.index.count()) continue;
+            row.setSelected(match_index == self.highlighted, colors);
         }
     }
 

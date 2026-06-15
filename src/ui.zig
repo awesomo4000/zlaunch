@@ -100,7 +100,7 @@ pub const Row = struct {
     icon: objc.ImageView = .{},
     app_name: objc.TextField = .{},
 
-    pub fn create(content: objc.View, y: objc.CGFloat, colors: theme.Theme) Row {
+    pub fn create(content: objc.View, y: objc.CGFloat, slot: usize, colors: theme.Theme) Row {
         const background = objc.View.create(.{
             .frame = rowFrame(y),
             .background_color = objc.Color.clear(),
@@ -118,10 +118,10 @@ pub const Row = struct {
         content.addSubview(number_box);
 
         const number = objc.TextLayer.create(.{
-            .frame = numberLayerFrame(number_box_frame),
-            .text = objc.String.fromStatic(""),
+            .frame = numberTextFrame(number_box_frame),
+            .text = rowNumberString(slot),
             .font_size = Layout.ResultRow.shortcut_font_size,
-            .text_color = colors.shortcut_fill,
+            .text_color = colors.shortcut_text,
         });
         number_box.layer().addSublayer(number);
 
@@ -149,16 +149,13 @@ pub const Row = struct {
         return self.app_name.isNil();
     }
 
-    pub fn showApp(self: Row, arena: std.mem.Allocator, slot: usize, name: []const u8, icon: objc.Image) void {
-        var number_buf: [1]u8 = .{@intCast('1' + slot)};
+    pub fn showApp(self: Row, arena: std.mem.Allocator, name: []const u8, icon: objc.Image) void {
         self.setHidden(false);
-        self.number.setString(objc.String.fromUtf8(arena, &number_buf));
         self.icon.setImage(icon);
         self.app_name.setStringValue(objc.String.fromUtf8(arena, name));
     }
 
     pub fn clear(self: Row, arena: std.mem.Allocator) void {
-        self.number.setString(objc.String.fromUtf8(arena, ""));
         self.icon.setImage(.nil());
         self.app_name.setStringValue(objc.String.fromUtf8(arena, ""));
         self.setHidden(true);
@@ -166,18 +163,16 @@ pub const Row = struct {
 
     pub fn setSelected(self: Row, selected: bool, colors: theme.Theme) void {
         if (selected) {
+            self.app_name.setTextColor(colors.selected_text);
             self.background.setFillColor(colors.selected);
             self.number_box.setFillColor(colors.shortcut_fill);
             self.number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut_fill);
-            self.number.setTextColor(colors.shortcut_text);
-            self.app_name.setTextColor(colors.selected_text);
             return;
         }
 
         self.background.setFillColor(objc.Color.clear());
         self.number_box.setFillColor(objc.Color.clear());
         self.number_box.setBorder(Layout.ResultRow.border_width, colors.shortcut_border);
-        self.number.setTextColor(colors.shortcut_fill);
         self.app_name.setTextColor(colors.muted);
     }
 
@@ -193,7 +188,7 @@ pub const Row = struct {
         self.background.setFrame(rowFrame(y));
         const shortcut_frame = numberBoxFrame(y);
         self.number_box.setFrame(shortcut_frame);
-        self.number.setFrame(numberLayerFrame(shortcut_frame));
+        self.number.setFrame(numberTextFrame(shortcut_frame));
         self.icon.setFrame(iconFrame(y));
         self.app_name.setFrame(.{
             .origin = .{ .x = Layout.List.x + Layout.ResultRow.app_name_column_x, .y = y },
@@ -264,8 +259,8 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
 
     var rows: Rows = [_]Row{.{}} ** Layout.visible_rows;
     var y: objc.CGFloat = Layout.rowStartY();
-    for (&rows) |*row| {
-        row.* = Row.create(surface, y, colors);
+    for (&rows, 0..) |*row, slot| {
+        row.* = Row.create(surface, y, slot, colors);
         row.setHidden(true);
         y -= Layout.ResultRow.height;
     }
@@ -388,16 +383,10 @@ fn numberBoxFrame(y: objc.CGFloat) objc.Rect {
     };
 }
 
-fn numberLayerFrame(box: objc.Rect) objc.Rect {
+fn numberTextFrame(box: objc.Rect) objc.Rect {
     return .{
-        .origin = .{
-            .x = 0,
-            .y = (box.size.height - Layout.ResultRow.shortcut_font_size) / 2 + Layout.ResultRow.shortcut_text_baseline_adjustment,
-        },
-        .size = .{
-            .width = box.size.width,
-            .height = Layout.ResultRow.shortcut_font_size + Layout.ResultRow.shortcut_text_height_padding,
-        },
+        .origin = .{ .x = 0, .y = (box.size.height - Layout.ResultRow.shortcut_font_size) / 2 + Layout.ResultRow.shortcut_text_baseline_adjustment },
+        .size = .{ .width = box.size.width, .height = Layout.ResultRow.shortcut_font_size + Layout.ResultRow.shortcut_text_height_padding },
     };
 }
 
@@ -443,6 +432,17 @@ fn makeTextField(rect: objc.Rect, font: objc.Font, text_color: objc.Color, backg
         .background_color = background_color,
         .editable = editable,
     });
+}
+
+fn rowNumberString(slot: usize) objc.String {
+    return switch (slot) {
+        0 => objc.String.fromStatic("1"),
+        1 => objc.String.fromStatic("2"),
+        2 => objc.String.fromStatic("3"),
+        3 => objc.String.fromStatic("4"),
+        4 => objc.String.fromStatic("5"),
+        else => objc.String.fromStatic(""),
+    };
 }
 
 test "visible row hit testing maps from top to bottom" {
