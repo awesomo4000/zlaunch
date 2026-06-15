@@ -830,6 +830,12 @@ pub const TextField = struct {
         msgSendVoidId(self.object.id, sel("setTextColor:"), color.object.id);
     }
 
+    pub fn setInsertionPointColor(self: TextField, color: Color) void {
+        const editor = self.currentEditor();
+        if (editor.isNil()) return;
+        msgSendVoidId(editor.id, sel("setInsertionPointColor:"), color.object.id);
+    }
+
     pub fn setBorder(self: TextField, width: CGFloat, color: Color) void {
         const field_layer = self.layer();
         field_layer.setBorderWidth(width);
@@ -884,6 +890,10 @@ pub const TextField = struct {
 
     fn currentCell(self: TextField) Object {
         return .wrap(msgSendId0(self.object.id, sel("cell")));
+    }
+
+    fn currentEditor(self: TextField) Object {
+        return .wrap(msgSendId0(self.object.id, sel("currentEditor")));
     }
 
     fn layer(self: TextField) Layer {

@@ -78,6 +78,7 @@ const Launcher = struct {
         self.panel.makeKeyAndOrderFront();
         self.app.activateIgnoringOtherApps(true);
         self.panel.makeFirstResponder(self.input.object);
+        self.input.setInsertionPointColor(cursorColor());
     }
 
     fn dismiss(self: *Launcher, behavior: DismissBehavior) void {
@@ -373,6 +374,10 @@ fn lowerTrimmedQuery(query: []const u8, buffer: []u8) []const u8 {
     const trimmed = std.mem.trim(u8, query, " \t\r\n");
     const n = @min(trimmed.len, buffer.len);
     return std.ascii.lowerString(buffer[0..n], trimmed[0..n]);
+}
+
+fn cursorColor() objc.Color {
+    return objc.Color.rgb(0.82, 0.86, 0.94, 0.72);
 }
 
 test "scroll offset advances after the fifth visible item" {
