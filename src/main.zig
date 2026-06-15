@@ -29,6 +29,7 @@ const Launcher = struct {
     scroll_offset: usize = 0,
     app: objc.Application = .{},
     panel: objc.Panel = .{},
+    glass: objc.GlassSurface = .{},
     input: objc.TextField = .{},
     rows: ui.Rows = [_]ui.Row{.{}} ** ui.Layout.visible_rows,
     divider: objc.View = .{},
@@ -55,6 +56,7 @@ const Launcher = struct {
     fn buildUi(self: *Launcher) void {
         const elements = ui.build(self.app, self.delegate);
         self.panel = elements.panel;
+        self.glass = elements.glass;
         self.input = elements.input;
         self.rows = elements.rows;
         self.divider = elements.divider;
@@ -93,7 +95,7 @@ const Launcher = struct {
     }
 
     fn applyTheme(self: *Launcher) void {
-        ui.applyTheme(self.app, self.panel, self.input, self.rows, self.divider);
+        ui.applyTheme(self.app, self.panel, self.glass, self.input, self.rows, self.divider);
     }
 
     fn restorePreviousApp(self: *Launcher) void {
@@ -233,7 +235,7 @@ const Launcher = struct {
 
     fn setMode(self: *Launcher, mode: ui.Mode) void {
         self.mode = mode;
-        ui.setMode(self.panel, self.input, self.rows, self.divider, mode);
+        ui.setMode(self.panel, self.glass, self.input, self.rows, self.divider, mode);
     }
 
     fn updateRows(self: *Launcher) void {

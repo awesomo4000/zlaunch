@@ -3,39 +3,43 @@ const objc = @import("objc.zig");
 const theme = @import("theme.zig");
 
 pub const Layout = struct {
-    pub const panel_width: objc.CGFloat = 640;
+    pub const panel_width: objc.CGFloat = 560;
     pub const panel_height: objc.CGFloat = expanded_panel_height;
-    pub const expanded_panel_height: objc.CGFloat = 386;
-    pub const margin: objc.CGFloat = 20;
-    pub const top_padding: objc.CGFloat = 36;
+    pub const expanded_panel_height: objc.CGFloat = 344;
+    pub const margin: objc.CGFloat = 16;
+    pub const top_padding: objc.CGFloat = 30;
     pub const bottom_padding: objc.CGFloat = top_padding;
     pub const compact_panel_height: objc.CGFloat = top_padding + input_height + bottom_padding;
-    pub const side_padding: objc.CGFloat = 64;
+    pub const side_padding: objc.CGFloat = 28;
     pub const input_x: objc.CGFloat = side_padding;
     pub const input_width: objc.CGFloat = panel_width - side_padding * 2;
     pub const list_x: objc.CGFloat = side_padding;
     pub const list_width: objc.CGFloat = panel_width - side_padding * 2;
-    pub const input_height: objc.CGFloat = 50;
-    pub const entry_font_size: objc.CGFloat = 18;
+    pub const input_height: objc.CGFloat = 52;
+    pub const query_font_size: objc.CGFloat = 22;
+    pub const entry_font_size: objc.CGFloat = 17;
     pub const row_number_font_size: objc.CGFloat = 12;
     pub const row_height: objc.CGFloat = 46;
-    pub const selected_bar_width: objc.CGFloat = 2;
-    pub const row_number_x_offset: objc.CGFloat = 18;
+    pub const selected_bar_width: objc.CGFloat = 0;
     pub const row_number_width: objc.CGFloat = 24;
     pub const row_number_height: objc.CGFloat = 22;
+    pub const row_number_x_offset: objc.CGFloat = 18;
     pub const row_number_y_offset: objc.CGFloat = (row_height - row_number_height) / 2;
     pub const icon_x_offset: objc.CGFloat = 62;
-    pub const icon_size: objc.CGFloat = 42;
+    pub const icon_size: objc.CGFloat = 34;
     pub const icon_y_offset: objc.CGFloat = (row_height - icon_size) / 2;
-    pub const row_label_x_offset: objc.CGFloat = 122;
-    pub const panel_corner_radius: objc.CGFloat = 12;
-    pub const input_corner_radius: objc.CGFloat = 5;
+    pub const row_label_x_offset: objc.CGFloat = 112;
+    pub const panel_corner_radius: objc.CGFloat = 30;
+    pub const input_corner_radius: objc.CGFloat = 20;
+    pub const row_corner_radius: objc.CGFloat = 12;
     pub const visible_rows = 5;
     pub const input_y: objc.CGFloat = inputY(.expanded);
-    pub const row_start_y: objc.CGFloat = input_y - margin - row_height;
+    pub const divider_gap: objc.CGFloat = 8;
+    pub const row_start_y: objc.CGFloat = input_y - margin - divider_gap - row_height;
     pub const divider_height: objc.CGFloat = 1;
     pub const list_bottom_y: objc.CGFloat = row_start_y - row_height * (visible_rows - 1);
     pub const divider_y: objc.CGFloat = bottom_padding;
+    pub const divider_top_y: objc.CGFloat = input_y - divider_gap;
 
     pub fn panelHeight(mode: Mode) objc.CGFloat {
         return switch (mode) {
@@ -58,6 +62,7 @@ pub const Rows = [Layout.visible_rows]Row;
 
 pub const Elements = struct {
     panel: objc.Panel,
+    glass: objc.GlassSurface,
     input: objc.TextField,
     rows: Rows,
     divider: objc.View,
@@ -76,6 +81,7 @@ pub const Row = struct {
             .frame = rowFrame(y),
             .background_color = objc.Color.clear(),
         });
+        background.setCornerRadius(Layout.row_corner_radius);
         content.addSubview(background);
 
         const selected_bar = objc.View.create(.{
@@ -94,7 +100,7 @@ pub const Row = struct {
             .background_color = objc.Color.clear(),
         });
         number_box.setBorder(1, colors.shortcut_border);
-        number_box.setCornerRadius(4);
+        number_box.setCornerRadius(6);
         content.addSubview(number_box);
 
         const number = objc.TextLayer.create(.{
@@ -113,7 +119,7 @@ pub const Row = struct {
         const app_name = makeTextField(.{
             .origin = .{ .x = Layout.list_x + Layout.row_label_x_offset, .y = y },
             .size = .{ .width = Layout.list_width - Layout.row_label_x_offset, .height = Layout.row_height },
-        }, Layout.entry_font_size, colors.text, objc.Color.clear(), false);
+        }, objc.Font.system(Layout.entry_font_size), colors.text, objc.Color.clear(), false);
         content.addSubview(app_name);
 
         return .{
@@ -156,7 +162,7 @@ pub const Row = struct {
             self.number_box.setBorder(1, colors.shortcut_fill);
             self.number.setTextColor(colors.shortcut_text);
             self.app_name.setTextColor(colors.selected_text);
-            self.selected_bar.setHidden(false);
+            self.selected_bar.setHidden(true);
             return;
         }
 
@@ -214,50 +220,60 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
 
     const content = panel.contentView();
     content.setWantsLayer(true);
-    content.layer().setBackgroundColor(colors.panel.cgColor());
-    content.layer().setCornerRadius(Layout.panel_corner_radius);
-    content.layer().setMasksToBounds(true);
+    content.layer().setBackgroundColor(objc.Color.clear().cgColor());
+
+    const glass = objc.GlassSurface.create(.{
+        .frame = .{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = .{ .width = Layout.panel_width, .height = Layout.panel_height },
+        },
+        .tint_color = colors.panel,
+        .corner_radius = Layout.panel_corner_radius,
+        .style = .regular,
+    });
+    content.addSubview(glass);
+    const surface = glass.contentView();
 
     const input = makeTextField(.{
         .origin = .{ .x = Layout.input_x, .y = Layout.input_y },
         .size = .{ .width = Layout.input_width, .height = Layout.input_height },
-    }, Layout.entry_font_size, colors.text, colors.input, true);
-    input.setBorder(1.5, colors.accent);
+    }, objc.Font.system(Layout.query_font_size), colors.text, colors.input, true);
+    input.setBorder(0, colors.accent);
     input.setCornerRadius(Layout.input_corner_radius);
     input.setDelegate(delegate);
-    content.addSubview(input);
-
-    var rows: Rows = [_]Row{.{}} ** Layout.visible_rows;
-    var y: objc.CGFloat = Layout.row_start_y;
-    for (&rows) |*row| {
-        row.* = Row.create(content, y, colors);
-        row.setHidden(true);
-        y -= Layout.row_height;
-    }
+    surface.addSubview(input);
 
     const divider = objc.View.create(.{
         .frame = .{
-            .origin = .{ .x = Layout.list_x, .y = Layout.divider_y },
+            .origin = .{ .x = Layout.list_x, .y = Layout.divider_top_y },
             .size = .{ .width = Layout.list_width, .height = Layout.divider_height },
         },
         .background_color = colors.divider,
     });
-    content.addSubview(divider);
-    setMode(panel, input, rows, divider, .compact);
+    surface.addSubview(divider);
 
-    return .{ .panel = panel, .input = input, .rows = rows, .divider = divider };
+    var rows: Rows = [_]Row{.{}} ** Layout.visible_rows;
+    var y: objc.CGFloat = Layout.row_start_y;
+    for (&rows) |*row| {
+        row.* = Row.create(surface, y, colors);
+        row.setHidden(true);
+        y -= Layout.row_height;
+    }
+
+    setMode(panel, glass, input, rows, divider, .compact);
+
+    return .{ .panel = panel, .glass = glass, .input = input, .rows = rows, .divider = divider };
 }
 
-pub fn applyTheme(app: objc.Application, panel: objc.Panel, input: objc.TextField, rows: Rows, divider: objc.View) void {
+pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, input: objc.TextField, rows: Rows, divider: objc.View) void {
     const colors = theme.Theme.current(app);
     panel.setBackgroundColor(objc.Color.clear());
-    const content_layer = panel.contentView().layer();
-    content_layer.setBackgroundColor(colors.panel.cgColor());
-    content_layer.setCornerRadius(Layout.panel_corner_radius);
-    content_layer.setMasksToBounds(true);
+    panel.contentView().layer().setBackgroundColor(objc.Color.clear().cgColor());
+    glass.setTintColor(colors.panel);
+    glass.setCornerRadius(Layout.panel_corner_radius);
     input.setTextColor(colors.text);
     input.setFillColor(colors.input);
-    input.setBorder(1.5, colors.accent);
+    input.setBorder(0, colors.accent);
     input.setCornerRadius(Layout.input_corner_radius);
     for (rows) |row| {
         row.setAccent(colors.accent);
@@ -266,13 +282,17 @@ pub fn applyTheme(app: objc.Application, panel: objc.Panel, input: objc.TextFiel
     divider.setFillColor(colors.divider);
 }
 
-pub fn setMode(panel: objc.Panel, input: objc.TextField, rows: Rows, divider: objc.View, mode: Mode) void {
+pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, input: objc.TextField, rows: Rows, divider: objc.View, mode: Mode) void {
     const height = Layout.panelHeight(mode);
     var frame = panel.frame();
     const top = frame.origin.y + frame.size.height;
     frame.size.height = height;
     frame.origin.y = top - height;
     panel.setFrame(frame, true);
+    glass.setFrame(.{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = .{ .width = Layout.panel_width, .height = height },
+    });
 
     input.setFrame(.{
         .origin = .{ .x = Layout.input_x, .y = Layout.inputY(mode) },
@@ -287,7 +307,7 @@ pub fn setMode(panel: objc.Panel, input: objc.TextField, rows: Rows, divider: ob
     }
 
     divider.setFrame(.{
-        .origin = .{ .x = Layout.list_x, .y = Layout.divider_y },
+        .origin = .{ .x = Layout.list_x, .y = Layout.inputY(mode) - Layout.divider_gap },
         .size = .{ .width = Layout.list_width, .height = Layout.divider_height },
     });
     divider.setHidden(mode == .compact);
@@ -336,11 +356,11 @@ fn iconFrame(y: objc.CGFloat) objc.Rect {
     };
 }
 
-fn makeTextField(rect: objc.Rect, font_size: objc.CGFloat, text_color: objc.Color, background_color: objc.Color, editable: objc.BOOL) objc.TextField {
+fn makeTextField(rect: objc.Rect, font: objc.Font, text_color: objc.Color, background_color: objc.Color, editable: objc.BOOL) objc.TextField {
     return objc.TextField.create(.{
         .class_name = if (editable) "ZLInputTextField" else "NSTextField",
         .frame = rect,
-        .font = objc.Font.monospacedSystem(font_size, 0),
+        .font = font,
         .text_color = text_color,
         .background_color = background_color,
         .editable = editable,

@@ -467,6 +467,127 @@ pub const View = struct {
     }
 };
 
+pub const GlassSurface = struct {
+    object: Object = .{},
+    content: View = .{},
+    uses_native_glass: BOOL = false,
+
+    pub const Style = enum(NSInteger) {
+        regular = 0,
+        clear = 1,
+    };
+
+    pub const Options = struct {
+        frame: Rect,
+        tint_color: Color,
+        corner_radius: CGFloat,
+        style: Style = .regular,
+    };
+
+    pub fn create(options: Options) GlassSurface {
+        const content = View.create(.{
+            .frame = localFrame(options.frame),
+            .background_color = Color.clear(),
+        });
+
+        if (cls("NSGlassEffectView") != null) {
+            const allocated = Object.alloc("NSGlassEffectView");
+            const glass = GlassSurface{
+                .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)),
+                .content = content,
+                .uses_native_glass = true,
+            };
+            glass.setNativeStyle(options.style);
+            glass.setTintColor(options.tint_color);
+            glass.setCornerRadius(options.corner_radius);
+            glass.setContentView(content);
+            return glass;
+        }
+
+        const allocated = Object.alloc("NSVisualEffectView");
+        const glass = GlassSurface{
+            .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)),
+            .content = content,
+        };
+        glass.setVisualMaterial(.hud_window);
+        glass.setVisualBlendingMode(.behind_window);
+        glass.setVisualState(.active);
+        glass.setCornerRadius(options.corner_radius);
+        glass.addSubview(content);
+        return glass;
+    }
+
+    pub fn contentView(self: GlassSurface) View {
+        return self.content;
+    }
+
+    pub fn setFrame(self: GlassSurface, rect: Rect) void {
+        msgSendVoidRect(self.object.id, sel("setFrame:"), rect);
+        self.content.setFrame(localFrame(rect));
+    }
+
+    pub fn setCornerRadius(self: GlassSurface, radius: CGFloat) void {
+        msgSendVoidBool(self.object.id, sel("setWantsLayer:"), true);
+        const layer = Layer{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
+        layer.setCornerRadius(radius);
+        layer.setMasksToBounds(true);
+        if (self.uses_native_glass) msgSendVoidCGFloat(self.object.id, sel("setCornerRadius:"), radius);
+    }
+
+    pub fn setTintColor(self: GlassSurface, color: Color) void {
+        if (self.uses_native_glass) {
+            msgSendVoidId(self.object.id, sel("setTintColor:"), color.object.id);
+            return;
+        }
+
+        const layer = Layer{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
+        layer.setBackgroundColor(color.cgColor());
+    }
+
+    pub fn addSubview(self: GlassSurface, view: anytype) void {
+        msgSendVoidId(self.object.id, sel("addSubview:"), view.object.id);
+    }
+
+    fn setContentView(self: GlassSurface, view: View) void {
+        msgSendVoidId(self.object.id, sel("setContentView:"), view.object.id);
+    }
+
+    fn setNativeStyle(self: GlassSurface, style: Style) void {
+        msgSendVoidInt(self.object.id, sel("setStyle:"), @intFromEnum(style));
+    }
+
+    const VisualMaterial = enum(NSInteger) {
+        hud_window = 13,
+    };
+
+    fn setVisualMaterial(self: GlassSurface, material: VisualMaterial) void {
+        msgSendVoidInt(self.object.id, sel("setMaterial:"), @intFromEnum(material));
+    }
+
+    const VisualBlendingMode = enum(NSInteger) {
+        behind_window = 0,
+    };
+
+    fn setVisualBlendingMode(self: GlassSurface, mode: VisualBlendingMode) void {
+        msgSendVoidInt(self.object.id, sel("setBlendingMode:"), @intFromEnum(mode));
+    }
+
+    const VisualState = enum(NSInteger) {
+        active = 1,
+    };
+
+    fn setVisualState(self: GlassSurface, state: VisualState) void {
+        msgSendVoidInt(self.object.id, sel("setState:"), @intFromEnum(state));
+    }
+
+    fn localFrame(frame: Rect) Rect {
+        return .{
+            .origin = .{ .x = 0, .y = 0 },
+            .size = frame.size,
+        };
+    }
+};
+
 pub const ImageView = struct {
     object: Object = .{},
 
