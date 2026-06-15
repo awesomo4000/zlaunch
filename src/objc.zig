@@ -520,11 +520,19 @@ pub const GlassSurface = struct {
         clear = 1,
     };
 
+    pub const MaterialVariant = enum(NSInteger) {
+        regular = 0,
+        clear = 1,
+        dock = 2,
+        sidebar = 19,
+    };
+
     pub const Options = struct {
         frame: Rect,
         tint_color: Color,
         corner_radius: CGFloat,
         style: NativeStyle = .regular,
+        variant: MaterialVariant = .regular,
     };
 
     pub fn create(options: Options) GlassSurface {
@@ -541,6 +549,7 @@ pub const GlassSurface = struct {
                 .backend = .native_glass,
             };
             glass.applyNativeStyle(options.style);
+            glass.setVariant(options.variant);
             glass.setTintColor(options.tint_color);
             glass.setCornerRadius(options.corner_radius);
             glass.setContentView(content);
@@ -593,6 +602,18 @@ pub const GlassSurface = struct {
     pub fn setStyle(self: GlassSurface, style: NativeStyle) void {
         switch (self.backend) {
             .native_glass => self.applyNativeStyle(style),
+            .visual_effect => {},
+        }
+    }
+
+    pub fn setVariant(self: GlassSurface, variant: MaterialVariant) void {
+        switch (self.backend) {
+            .native_glass => {
+                const selector = sel("setVariant:");
+                if (msgSendBoolSelector(self.object.id, sel("respondsToSelector:"), selector)) {
+                    msgSendVoidInt(self.object.id, selector, @intFromEnum(variant));
+                }
+            },
             .visual_effect => {},
         }
     }
@@ -1129,6 +1150,12 @@ pub fn msgSendIdObjectBufferCount(recv: Id, op: Selector, objects: [*]const Id, 
 
 pub fn msgSendBoolId(recv: Id, op: Selector, arg: Id) BOOL {
     const Fn = *const fn (Id, Selector, Id) callconv(.c) BOOL;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, arg);
+}
+
+pub fn msgSendBoolSelector(recv: Id, op: Selector, arg: Selector) BOOL {
+    const Fn = *const fn (Id, Selector, Selector) callconv(.c) BOOL;
     const f: Fn = @ptrCast(&objc_msgSend);
     return f(recv, op, arg);
 }

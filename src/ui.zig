@@ -301,6 +301,7 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
         .tint_color = colors.glass.tint,
         .corner_radius = Layout.Panel.corner_radius,
         .style = colors.glass.style,
+        .variant = colors.glass.variant,
     });
     content.addSubview(glass);
     const surface = glass.contentView();
@@ -347,6 +348,7 @@ fn applyThemeViews(app: objc.Application, panel: objc.Panel, glass: objc.GlassSu
     panel.setBackgroundColor(objc.Color.clear());
     panel.contentView().layer().setBackgroundColor(objc.Color.clear().cgColor());
     glass.setStyle(colors.glass.style);
+    glass.setVariant(colors.glass.variant);
     glass.setTintColor(colors.glass.tint);
     glass.setCornerRadius(Layout.Panel.corner_radius);
     glass_gradient.setColors(colors.glass.gradient_start, colors.glass.gradient_end);

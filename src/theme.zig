@@ -12,6 +12,7 @@ pub const Theme = struct {
             return .{
                 .glass = .{
                     .style = Glass.style,
+                    .variant = Glass.variant,
                     .tint = hexColorAlpha(Palette.Dark.glass_tint, Alpha.Dark.panel),
                     .gradient_start = hexColorAlpha(Palette.Dark.gradient_start, Alpha.Dark.gradient_start),
                     .gradient_end = hexColorAlpha(Palette.Dark.gradient_end, Alpha.Dark.gradient_end),
@@ -41,6 +42,7 @@ pub const Theme = struct {
         return .{
             .glass = .{
                 .style = Glass.style,
+                .variant = Glass.variant,
                 .tint = hexColorAlpha(Palette.Light.glass_tint, Alpha.Light.panel),
                 .gradient_start = hexColorAlpha(Palette.Light.gradient_start, Alpha.Light.gradient_start),
                 .gradient_end = hexColorAlpha(Palette.Light.gradient_end, Alpha.Light.gradient_end),
@@ -70,6 +72,7 @@ pub const Theme = struct {
 
 pub const GlassTheme = struct {
     style: objc.GlassSurface.NativeStyle,
+    variant: objc.GlassSurface.MaterialVariant,
     tint: objc.Color,
     gradient_start: objc.Color,
     gradient_end: objc.Color,
@@ -98,6 +101,7 @@ pub const ShortcutTheme = struct {
 
 pub const Glass = struct {
     pub const style: objc.GlassSurface.NativeStyle = .regular;
+    pub const variant: objc.GlassSurface.MaterialVariant = .dock;
 };
 
 fn hexColor(comptime value: u24) objc.Color {
