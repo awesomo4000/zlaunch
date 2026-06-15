@@ -86,16 +86,17 @@ pub const Rows = [Layout.visible_rows]Row;
 pub const Elements = struct {
     panel: objc.Panel = .{},
     glass: objc.GlassSurface = .{},
+    glass_gradient: objc.GradientLayer = .{},
     search_icon: objc.ImageView = .{},
     input: objc.TextField = .{},
     results: ResultList = .{},
 
     pub fn applyTheme(self: Elements, app: objc.Application) void {
-        applyThemeViews(app, self.panel, self.glass, self.search_icon, self.input, self.results);
+        applyThemeViews(app, self.panel, self.glass, self.glass_gradient, self.search_icon, self.input, self.results);
     }
 
     pub fn setMode(self: Elements, mode: Mode) void {
-        setModeViews(self.panel, self.glass, self.search_icon, self.input, self.results, mode);
+        setModeViews(self.panel, self.glass, self.glass_gradient, self.search_icon, self.input, self.results, mode);
     }
 
     pub fn positionPanel(self: Elements, mode: Mode) void {
@@ -303,6 +304,13 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
     });
     content.addSubview(glass);
     const surface = glass.contentView();
+    const glass_gradient = objc.GradientLayer.create(.{
+        .frame = panelLocalFrame(.expanded),
+        .start_color = colors.glass.gradient_start,
+        .end_color = colors.glass.gradient_end,
+        .corner_radius = Layout.Panel.corner_radius,
+    });
+    surface.layer().insertSublayer(glass_gradient, 0);
 
     const input = makeTextField(searchTextFrame(.expanded), objc.Font.system(Layout.Search.font_size), colors.search.text, colors.search.fill, true);
     input.setBorder(Layout.Search.border_width, colors.search.accent);
@@ -322,24 +330,27 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
 
     const results = ResultList.create(surface, colors);
 
-    setModeViews(panel, glass, search_icon, input, results, .compact);
+    setModeViews(panel, glass, glass_gradient, search_icon, input, results, .compact);
 
     return .{
         .panel = panel,
         .glass = glass,
+        .glass_gradient = glass_gradient,
         .search_icon = search_icon,
         .input = input,
         .results = results,
     };
 }
 
-fn applyThemeViews(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, results: ResultList) void {
+fn applyThemeViews(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, glass_gradient: objc.GradientLayer, search_icon: objc.ImageView, input: objc.TextField, results: ResultList) void {
     const colors = theme.Theme.current(app);
     panel.setBackgroundColor(objc.Color.clear());
     panel.contentView().layer().setBackgroundColor(objc.Color.clear().cgColor());
     glass.setStyle(colors.glass.style);
     glass.setTintColor(colors.glass.tint);
     glass.setCornerRadius(Layout.Panel.corner_radius);
+    glass_gradient.setColors(colors.glass.gradient_start, colors.glass.gradient_end);
+    glass_gradient.setCornerRadius(Layout.Panel.corner_radius);
     input.setTextColor(colors.search.text);
     input.setFillColor(colors.search.fill);
     input.setBorder(Layout.Search.border_width, colors.search.accent);
@@ -348,7 +359,7 @@ fn applyThemeViews(app: objc.Application, panel: objc.Panel, glass: objc.GlassSu
     results.applyTheme(colors);
 }
 
-fn setModeViews(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, results: ResultList, mode: Mode) void {
+fn setModeViews(panel: objc.Panel, glass: objc.GlassSurface, glass_gradient: objc.GradientLayer, search_icon: objc.ImageView, input: objc.TextField, results: ResultList, mode: Mode) void {
     const height = Layout.panelHeight(mode);
     var frame = panel.frame();
     const top = frame.origin.y + frame.size.height;
@@ -359,6 +370,7 @@ fn setModeViews(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.I
         .origin = .{ .x = 0, .y = 0 },
         .size = .{ .width = Layout.Panel.width, .height = height },
     });
+    glass_gradient.setFrame(panelLocalFrame(mode));
 
     input.setFrame(searchTextFrame(mode));
     search_icon.setFrame(searchIconFrame(mode));
@@ -373,6 +385,13 @@ pub fn visibleRowAtY(y: objc.CGFloat) ?usize {
 
     const row_from_bottom: usize = @intFromFloat(y / Layout.ResultRow.height);
     return Layout.visible_rows - 1 - row_from_bottom;
+}
+
+fn panelLocalFrame(mode: Mode) objc.Rect {
+    return .{
+        .origin = .{ .x = 0, .y = 0 },
+        .size = .{ .width = Layout.Panel.width, .height = Layout.panelHeight(mode) },
+    };
 }
 
 fn positionPanelView(panel: objc.Panel, mode: Mode) void {

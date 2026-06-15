@@ -13,6 +13,8 @@ pub const Theme = struct {
                 .glass = .{
                     .style = Glass.style,
                     .tint = hexColorAlpha(Palette.Dark.glass_tint, Alpha.Dark.panel),
+                    .gradient_start = hexColorAlpha(Palette.Dark.gradient_start, Alpha.Dark.gradient_start),
+                    .gradient_end = hexColorAlpha(Palette.Dark.gradient_end, Alpha.Dark.gradient_end),
                 },
                 .search = .{
                     .fill = objc.Color.clear(),
@@ -40,6 +42,8 @@ pub const Theme = struct {
             .glass = .{
                 .style = Glass.style,
                 .tint = hexColorAlpha(Palette.Light.glass_tint, Alpha.Light.panel),
+                .gradient_start = hexColorAlpha(Palette.Light.gradient_start, Alpha.Light.gradient_start),
+                .gradient_end = hexColorAlpha(Palette.Light.gradient_end, Alpha.Light.gradient_end),
             },
             .search = .{
                 .fill = objc.Color.clear(),
@@ -67,6 +71,8 @@ pub const Theme = struct {
 pub const GlassTheme = struct {
     style: objc.GlassSurface.NativeStyle,
     tint: objc.Color,
+    gradient_start: objc.Color,
+    gradient_end: objc.Color,
 };
 
 pub const SearchTheme = struct {
@@ -111,6 +117,8 @@ const Palette = struct {
 
     const Light = struct {
         const glass_tint = 0x3f4f93;
+        const gradient_start = 0xaab6e5;
+        const gradient_end = 0x5165c9;
         const ink = 0xffffff;
         const quiet_ink = 0xd9ddf2;
         const selected_band = 0x93a0f0;
@@ -122,6 +130,8 @@ const Palette = struct {
 
     const Dark = struct {
         const glass_tint = 0x303f78;
+        const gradient_start = 0xa0ace0;
+        const gradient_end = 0x4559be;
         const ink = 0xf7f8ff;
         const quiet_ink = 0xc5cae2;
         const selected_band = 0x8190ec;
@@ -138,6 +148,8 @@ const Alpha = struct {
 
     const Light = struct {
         const panel: objc.CGFloat = 0.52;
+        const gradient_start: objc.CGFloat = 0.34;
+        const gradient_end: objc.CGFloat = 0.46;
         const selected: objc.CGFloat = 0.76;
         const divider: objc.CGFloat = 0.44;
         const shortcut_border: objc.CGFloat = 0.25;
@@ -145,6 +157,8 @@ const Alpha = struct {
 
     const Dark = struct {
         const panel: objc.CGFloat = 0.68;
+        const gradient_start: objc.CGFloat = 0.30;
+        const gradient_end: objc.CGFloat = 0.44;
         const selected: objc.CGFloat = 0.74;
         const divider: objc.CGFloat = 0.42;
         const shortcut_border: objc.CGFloat = 0.20;

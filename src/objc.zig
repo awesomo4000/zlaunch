@@ -692,6 +692,10 @@ pub const Layer = struct {
         msgSendVoidId(self.object.id, sel("addSublayer:"), layer.object.id);
     }
 
+    pub fn insertSublayer(self: Layer, layer: anytype, index: NSUInteger) void {
+        msgSendVoidIdUInteger(self.object.id, sel("insertSublayer:atIndex:"), layer.object.id, index);
+    }
+
     pub fn setBackgroundColor(self: Layer, color: Object) void {
         msgSendVoidId(self.object.id, sel("setBackgroundColor:"), color.id);
     }
@@ -713,6 +717,55 @@ pub const Layer = struct {
     }
 
     pub fn setMasksToBounds(self: Layer, value: BOOL) void {
+        msgSendVoidBool(self.object.id, sel("setMasksToBounds:"), value);
+    }
+};
+
+pub const GradientLayer = struct {
+    object: Object = .{},
+
+    pub const Options = struct {
+        frame: Rect,
+        start_color: Color,
+        end_color: Color,
+        start_point: Point = .{ .x = 0, .y = 1 },
+        end_point: Point = .{ .x = 1, .y = 0 },
+        corner_radius: CGFloat = 0,
+    };
+
+    pub fn create(options: Options) GradientLayer {
+        const layer = GradientLayer{ .object = .wrap(msgSendId0(cls("CAGradientLayer"), sel("layer"))) };
+        layer.setFrame(options.frame);
+        layer.setColors(options.start_color, options.end_color);
+        layer.setStartPoint(options.start_point);
+        layer.setEndPoint(options.end_point);
+        layer.setCornerRadius(options.corner_radius);
+        layer.setMasksToBounds(true);
+        return layer;
+    }
+
+    pub fn setFrame(self: GradientLayer, rect: Rect) void {
+        msgSendVoidRect(self.object.id, sel("setFrame:"), rect);
+    }
+
+    pub fn setColors(self: GradientLayer, start_color: Color, end_color: Color) void {
+        const colors = Array.withObjects(&.{ start_color.cgColor(), end_color.cgColor() });
+        msgSendVoidId(self.object.id, sel("setColors:"), colors.object.id);
+    }
+
+    pub fn setStartPoint(self: GradientLayer, point: Point) void {
+        msgSendVoidPoint(self.object.id, sel("setStartPoint:"), point);
+    }
+
+    pub fn setEndPoint(self: GradientLayer, point: Point) void {
+        msgSendVoidPoint(self.object.id, sel("setEndPoint:"), point);
+    }
+
+    pub fn setCornerRadius(self: GradientLayer, radius: CGFloat) void {
+        msgSendVoidCGFloat(self.object.id, sel("setCornerRadius:"), radius);
+    }
+
+    pub fn setMasksToBounds(self: GradientLayer, value: BOOL) void {
         msgSendVoidBool(self.object.id, sel("setMasksToBounds:"), value);
     }
 };
@@ -1048,6 +1101,12 @@ pub fn msgSendVoidId(recv: Id, op: Selector, arg: Id) void {
     const Fn = *const fn (Id, Selector, Id) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);
     f(recv, op, arg);
+}
+
+pub fn msgSendVoidIdUInteger(recv: Id, op: Selector, arg1: Id, arg2: NSUInteger) void {
+    const Fn = *const fn (Id, Selector, Id, NSUInteger) callconv(.c) void;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    f(recv, op, arg1, arg2);
 }
 
 pub fn msgSendIdId(recv: Id, op: Selector, arg: Id) Id {
