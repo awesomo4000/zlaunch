@@ -9,6 +9,7 @@ pub const Handler = struct {
     launch_highlighted: *const fn (*anyopaque) void,
     launch_visible_row: *const fn (*anyopaque, usize) bool,
     autocomplete: *const fn (*anyopaque) void,
+    refresh_apps: *const fn (*anyopaque) void,
     dismiss: *const fn (*anyopaque) void,
 };
 
@@ -113,30 +114,48 @@ fn windowDidResignKey(_: objc.Id, _: objc.Selector, _: objc.Id) callconv(.c) voi
 }
 
 fn panelPerformKeyEquivalent(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) objc.BOOL {
+    if (tryRefreshEvent(event)) return true;
     if (tryLaunchNumberEvent(event)) return true;
     return objc.msgSendSuperBoolId(self, objc.cls("NSPanel"), objc.sel("performKeyEquivalent:"), event);
 }
 
 fn inputKeyDown(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) void {
+    if (tryRefreshEvent(event)) return;
     if (tryLaunchNumberEvent(event)) return;
 
     objc.msgSendSuperVoidId(self, objc.cls("NSTextField"), objc.sel("keyDown:"), event);
 }
 
+fn tryRefreshEvent(event: objc.Id) bool {
+    if (!isCommandCharacter(event, 'r')) return false;
+    handler.refresh_apps(handler.context);
+    return true;
+}
+
 fn tryLaunchNumberEvent(event: objc.Id) bool {
-    if (event == null) return false;
+    const character = commandCharacter(event) orelse return false;
+    if (character >= '1' and character <= '5') {
+        return handler.launch_visible_row(handler.context, character - '1');
+    }
+    return false;
+}
+
+fn isCommandCharacter(event: objc.Id, expected: u16) bool {
+    const character = commandCharacter(event) orelse return false;
+    return character == expected or character == expected - 32;
+}
+
+fn commandCharacter(event: objc.Id) ?u16 {
+    if (event == null) return null;
     const flags = objc.msgSendUInteger0(event, objc.sel("modifierFlags"));
-    if (flags & command_modifier == 0) return false;
+    if (flags & command_modifier == 0) return null;
 
     const characters_id = objc.msgSendId0(event, objc.sel("charactersIgnoringModifiers"));
-    if (characters_id == null) return false;
+    if (characters_id == null) return null;
     const characters = objc.String{ .object = .wrap(characters_id) };
     if (characters.length() == 1) {
-        const character = characters.characterAtIndex(0);
-        if (character >= '1' and character <= '5') {
-            return handler.launch_visible_row(handler.context, character - '1');
-        }
+        return characters.characterAtIndex(0);
     }
 
-    return false;
+    return null;
 }

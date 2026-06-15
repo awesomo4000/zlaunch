@@ -20,6 +20,7 @@ const CliOptions = struct {
 const Launcher = struct {
     arena: std.mem.Allocator,
     io: std.Io,
+    env: *std.process.Environ.Map,
     all_apps: std.ArrayList(apps.App) = .empty,
     launch_stats: stats.Stats = .{},
     matches: std.ArrayList(usize) = .empty,
@@ -44,6 +45,7 @@ const Launcher = struct {
         return .{
             .arena = arena,
             .io = init_context.io,
+            .env = init_context.environ_map,
             .all_apps = try apps.discover(arena, init_context.io, init_context.environ_map),
             .launch_stats = try stats.Stats.load(arena, init_context.io, init_context.environ_map),
             .app = app,
@@ -131,6 +133,20 @@ const Launcher = struct {
         apps.sortMatchesByLaunchCount(self.all_apps.items, self.matches.items, self.launch_stats);
     }
 
+    fn refreshAppsKeepingQuery(self: *Launcher) void {
+        var query_buf: [256]u8 = undefined;
+        const query = self.copyCurrentQuery(&query_buf);
+        self.all_apps = apps.discover(self.arena, self.io, self.env) catch return;
+        self.filter(query);
+        self.syncModeWithMatches();
+    }
+
+    fn copyCurrentQuery(self: *Launcher, buffer: []u8) []const u8 {
+        const n = @min(self.query.items.len, buffer.len);
+        @memcpy(buffer[0..n], self.query.items[0..n]);
+        return buffer[0..n];
+    }
+
     fn moveHighlight(self: *Launcher, delta: i32) void {
         if (self.mode == .compact) return;
         if (self.matches.items.len == 0) return;
@@ -168,6 +184,12 @@ const Launcher = struct {
     fn launchMatch(self: *Launcher, match_index: usize) void {
         const app_index = self.matches.items[match_index];
         const path = self.all_apps.items[app_index].path;
+        if (!pathExists(self.io, path)) {
+            self.refreshAppsKeepingQuery();
+            self.updateRows();
+            return;
+        }
+
         var child = std.process.spawn(self.io, .{
             .argv = &.{ "/usr/bin/open", path },
             .stdin = .ignore,
@@ -208,8 +230,18 @@ const Launcher = struct {
     }
 
     fn updateRows(self: *Launcher) void {
+        self.updateRowsChecked(true);
+    }
+
+    fn updateRowsChecked(self: *Launcher, allow_refresh: bool) void {
         if (self.mode == .compact) {
             for (self.rows) |row| row.clear(self.arena);
+            return;
+        }
+
+        if (allow_refresh and self.visibleMatchesContainMissingPath()) {
+            self.refreshAppsKeepingQuery();
+            self.updateRowsChecked(false);
             return;
         }
 
@@ -228,6 +260,17 @@ const Launcher = struct {
             row.setSelected(match_index == self.highlighted and is_match, colors);
         }
     }
+
+    fn visibleMatchesContainMissingPath(self: *Launcher) bool {
+        for (0..ui.Layout.visible_rows) |i| {
+            const match_index = self.scroll_offset + i;
+            if (match_index >= self.matches.items.len) return false;
+
+            const app = self.all_apps.items[self.matches.items[match_index]];
+            if (!pathExists(self.io, app.path)) return true;
+        }
+        return false;
+    }
 };
 
 var launcher: Launcher = undefined;
@@ -245,6 +288,7 @@ pub fn main(init_context: std.process.Init) !void {
         .launch_highlighted = onLaunchHighlighted,
         .launch_visible_row = onLaunchVisibleRow,
         .autocomplete = onAutocomplete,
+        .refresh_apps = onRefreshApps,
         .dismiss = onDismiss,
     });
     launcher.buildUi();
@@ -293,9 +337,23 @@ fn onAutocomplete(context: *anyopaque) void {
     app_launcher.autocomplete();
 }
 
+fn onRefreshApps(context: *anyopaque) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.refreshAppsKeepingQuery();
+    app_launcher.updateRows();
+}
+
 fn onDismiss(context: *anyopaque) void {
     const app_launcher: *Launcher = @ptrCast(@alignCast(context));
     app_launcher.dismiss(.return_to_previous_app);
+}
+
+fn pathExists(io: std.Io, path: []const u8) bool {
+    std.Io.Dir.accessAbsolute(io, path, .{}) catch |err| switch (err) {
+        error.FileNotFound, error.BadPathName, error.NameTooLong => return false,
+        else => return true,
+    };
+    return true;
 }
 
 fn scrollOffsetForHighlight(highlighted: usize, scroll_offset: usize, visible_rows: usize) usize {
