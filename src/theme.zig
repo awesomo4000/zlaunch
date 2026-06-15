@@ -17,7 +17,7 @@ pub const Theme = struct {
         if (app.isDarkMode()) {
             return .{
                 .panel = hexColorAlpha(Palette.Dark.glass_tint, 0.78),
-                .input = hexColorAlpha(Palette.Dark.prompt_panel, 0.12),
+                .input = objc.Color.clear(),
                 .text = hexColor(Palette.Dark.ink),
                 .muted = hexColor(Palette.Dark.quiet_ink),
                 .selected = hexColorAlpha(Palette.Dark.selected_band, 0.62),
@@ -32,7 +32,7 @@ pub const Theme = struct {
 
         return .{
             .panel = hexColorAlpha(Palette.Light.glass_tint, 0.62),
-            .input = hexColorAlpha(Palette.Light.prompt_panel, 0.14),
+            .input = objc.Color.clear(),
             .text = hexColor(Palette.Light.ink),
             .muted = hexColor(Palette.Light.quiet_ink),
             .selected = hexColorAlpha(Palette.Light.selected_band, 0.66),
@@ -62,7 +62,6 @@ const Palette = struct {
 
     const Light = struct {
         const glass_tint = 0x3f4f93;
-        const prompt_panel = 0xffffff;
         const ink = 0xffffff;
         const quiet_ink = 0xd9ddf2;
         const selected_band = 0x6777d9;
@@ -74,7 +73,6 @@ const Palette = struct {
 
     const Dark = struct {
         const glass_tint = 0x303f78;
-        const prompt_panel = 0xffffff;
         const ink = 0xf7f8ff;
         const quiet_ink = 0xc5cae2;
         const selected_band = 0x5364c8;

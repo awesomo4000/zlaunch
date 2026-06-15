@@ -273,6 +273,17 @@ pub const Image = struct {
         return .{};
     }
 
+    pub fn systemSymbol(name: String, accessibility_description: String) Image {
+        return .{
+            .object = .wrap(msgSendIdIdId(
+                cls("NSImage"),
+                sel("imageWithSystemSymbolName:accessibilityDescription:"),
+                name.object.id,
+                accessibility_description.object.id,
+            )),
+        };
+    }
+
     pub fn retain(self: Image) Image {
         return .{ .object = self.object.retain() };
     }
@@ -617,6 +628,10 @@ pub const ImageView = struct {
 
     pub fn setImageScaling(self: ImageView, scaling: ImageScaling) void {
         msgSendVoidUInteger(self.object.id, sel("setImageScaling:"), @intFromEnum(scaling));
+    }
+
+    pub fn setContentTintColor(self: ImageView, color: Color) void {
+        msgSendVoidId(self.object.id, sel("setContentTintColor:"), color.object.id);
     }
 
     pub fn setHidden(self: ImageView, value: BOOL) void {
@@ -987,6 +1002,12 @@ pub fn msgSendIdId(recv: Id, op: Selector, arg: Id) Id {
     const Fn = *const fn (Id, Selector, Id) callconv(.c) Id;
     const f: Fn = @ptrCast(&objc_msgSend);
     return f(recv, op, arg);
+}
+
+pub fn msgSendIdIdId(recv: Id, op: Selector, arg1: Id, arg2: Id) Id {
+    const Fn = *const fn (Id, Selector, Id, Id) callconv(.c) Id;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op, arg1, arg2);
 }
 
 pub fn msgSendIdObjectBufferCount(recv: Id, op: Selector, objects: [*]const Id, count: NSUInteger) Id {

@@ -30,6 +30,7 @@ const Launcher = struct {
     app: objc.Application = .{},
     panel: objc.Panel = .{},
     glass: objc.GlassSurface = .{},
+    search_icon: objc.ImageView = .{},
     input: objc.TextField = .{},
     rows: ui.Rows = [_]ui.Row{.{}} ** ui.Layout.visible_rows,
     divider: objc.View = .{},
@@ -57,6 +58,7 @@ const Launcher = struct {
         const elements = ui.build(self.app, self.delegate);
         self.panel = elements.panel;
         self.glass = elements.glass;
+        self.search_icon = elements.search_icon;
         self.input = elements.input;
         self.rows = elements.rows;
         self.divider = elements.divider;
@@ -95,7 +97,7 @@ const Launcher = struct {
     }
 
     fn applyTheme(self: *Launcher) void {
-        ui.applyTheme(self.app, self.panel, self.glass, self.input, self.rows, self.divider);
+        ui.applyTheme(self.app, self.panel, self.glass, self.search_icon, self.input, self.rows, self.divider);
     }
 
     fn restorePreviousApp(self: *Launcher) void {
@@ -235,7 +237,7 @@ const Launcher = struct {
 
     fn setMode(self: *Launcher, mode: ui.Mode) void {
         self.mode = mode;
-        ui.setMode(self.panel, self.glass, self.input, self.rows, self.divider, mode);
+        ui.setMode(self.panel, self.glass, self.search_icon, self.input, self.rows, self.divider, mode);
     }
 
     fn updateRows(self: *Launcher) void {

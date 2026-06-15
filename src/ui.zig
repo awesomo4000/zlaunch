@@ -5,21 +5,25 @@ const theme = @import("theme.zig");
 pub const Layout = struct {
     pub const panel_width: objc.CGFloat = 560;
     pub const panel_height: objc.CGFloat = expanded_panel_height;
-    pub const expanded_panel_height: objc.CGFloat = 344;
-    pub const margin: objc.CGFloat = 16;
-    pub const top_padding: objc.CGFloat = 30;
+    pub const top_padding: objc.CGFloat = 14;
     pub const bottom_padding: objc.CGFloat = top_padding;
     pub const compact_panel_height: objc.CGFloat = top_padding + input_height + bottom_padding;
-    pub const side_padding: objc.CGFloat = 28;
+    pub const expanded_panel_height: objc.CGFloat = top_padding + input_height + divider_gap + margin + row_height * visible_rows + bottom_padding;
+    pub const margin: objc.CGFloat = 12;
+    pub const side_padding: objc.CGFloat = 16;
     pub const input_x: objc.CGFloat = side_padding;
     pub const input_width: objc.CGFloat = panel_width - side_padding * 2;
+    pub const search_icon_size: objc.CGFloat = 18;
+    pub const search_icon_x: objc.CGFloat = input_x + 30;
+    pub const input_text_x: objc.CGFloat = input_x + 68;
+    pub const input_text_width: objc.CGFloat = input_width - 116;
     pub const list_x: objc.CGFloat = side_padding;
     pub const list_width: objc.CGFloat = panel_width - side_padding * 2;
-    pub const input_height: objc.CGFloat = 52;
+    pub const input_height: objc.CGFloat = 48;
     pub const query_font_size: objc.CGFloat = 22;
     pub const entry_font_size: objc.CGFloat = 17;
     pub const row_number_font_size: objc.CGFloat = 12;
-    pub const row_height: objc.CGFloat = 46;
+    pub const row_height: objc.CGFloat = 44;
     pub const selected_bar_width: objc.CGFloat = 0;
     pub const row_number_width: objc.CGFloat = 24;
     pub const row_number_height: objc.CGFloat = 22;
@@ -29,12 +33,12 @@ pub const Layout = struct {
     pub const icon_size: objc.CGFloat = 34;
     pub const icon_y_offset: objc.CGFloat = (row_height - icon_size) / 2;
     pub const row_label_x_offset: objc.CGFloat = 112;
-    pub const panel_corner_radius: objc.CGFloat = 30;
-    pub const input_corner_radius: objc.CGFloat = 20;
-    pub const row_corner_radius: objc.CGFloat = 12;
+    pub const panel_corner_radius: objc.CGFloat = 36;
+    pub const input_corner_radius: objc.CGFloat = input_height / 2;
+    pub const row_corner_radius: objc.CGFloat = row_height / 2;
     pub const visible_rows = 5;
     pub const input_y: objc.CGFloat = inputY(.expanded);
-    pub const divider_gap: objc.CGFloat = 8;
+    pub const divider_gap: objc.CGFloat = 6;
     pub const row_start_y: objc.CGFloat = input_y - margin - divider_gap - row_height;
     pub const divider_height: objc.CGFloat = 1;
     pub const list_bottom_y: objc.CGFloat = row_start_y - row_height * (visible_rows - 1);
@@ -63,6 +67,7 @@ pub const Rows = [Layout.visible_rows]Row;
 pub const Elements = struct {
     panel: objc.Panel,
     glass: objc.GlassSurface,
+    search_icon: objc.ImageView,
     input: objc.TextField,
     rows: Rows,
     divider: objc.View,
@@ -235,13 +240,23 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
     const surface = glass.contentView();
 
     const input = makeTextField(.{
-        .origin = .{ .x = Layout.input_x, .y = Layout.input_y },
-        .size = .{ .width = Layout.input_width, .height = Layout.input_height },
+        .origin = .{ .x = Layout.input_text_x, .y = Layout.input_y },
+        .size = .{ .width = Layout.input_text_width, .height = Layout.input_height },
     }, objc.Font.system(Layout.query_font_size), colors.text, colors.input, true);
     input.setBorder(0, colors.accent);
     input.setCornerRadius(Layout.input_corner_radius);
     input.setDelegate(delegate);
     surface.addSubview(input);
+
+    const search_icon = objc.ImageView.create(.{
+        .frame = searchIconFrame(.expanded),
+        .image = objc.Image.systemSymbol(
+            objc.String.fromStatic("magnifyingglass"),
+            objc.String.fromStatic("Search"),
+        ),
+    });
+    search_icon.setContentTintColor(colors.muted);
+    surface.addSubview(search_icon);
 
     const divider = objc.View.create(.{
         .frame = .{
@@ -260,12 +275,12 @@ pub fn build(app: objc.Application, delegate: objc.Object) Elements {
         y -= Layout.row_height;
     }
 
-    setMode(panel, glass, input, rows, divider, .compact);
+    setMode(panel, glass, search_icon, input, rows, divider, .compact);
 
-    return .{ .panel = panel, .glass = glass, .input = input, .rows = rows, .divider = divider };
+    return .{ .panel = panel, .glass = glass, .search_icon = search_icon, .input = input, .rows = rows, .divider = divider };
 }
 
-pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, input: objc.TextField, rows: Rows, divider: objc.View) void {
+pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, rows: Rows, divider: objc.View) void {
     const colors = theme.Theme.current(app);
     panel.setBackgroundColor(objc.Color.clear());
     panel.contentView().layer().setBackgroundColor(objc.Color.clear().cgColor());
@@ -275,6 +290,7 @@ pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSur
     input.setFillColor(colors.input);
     input.setBorder(0, colors.accent);
     input.setCornerRadius(Layout.input_corner_radius);
+    search_icon.setContentTintColor(colors.muted);
     for (rows) |row| {
         row.setAccent(colors.accent);
         row.number_box.setBorder(1, colors.shortcut_border);
@@ -282,7 +298,7 @@ pub fn applyTheme(app: objc.Application, panel: objc.Panel, glass: objc.GlassSur
     divider.setFillColor(colors.divider);
 }
 
-pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, input: objc.TextField, rows: Rows, divider: objc.View, mode: Mode) void {
+pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, search_icon: objc.ImageView, input: objc.TextField, rows: Rows, divider: objc.View, mode: Mode) void {
     const height = Layout.panelHeight(mode);
     var frame = panel.frame();
     const top = frame.origin.y + frame.size.height;
@@ -295,9 +311,10 @@ pub fn setMode(panel: objc.Panel, glass: objc.GlassSurface, input: objc.TextFiel
     });
 
     input.setFrame(.{
-        .origin = .{ .x = Layout.input_x, .y = Layout.inputY(mode) },
-        .size = .{ .width = Layout.input_width, .height = Layout.input_height },
+        .origin = .{ .x = Layout.input_text_x, .y = Layout.inputY(mode) },
+        .size = .{ .width = Layout.input_text_width, .height = Layout.input_height },
     });
+    search_icon.setFrame(searchIconFrame(mode));
 
     var y: objc.CGFloat = Layout.row_start_y;
     for (rows) |row| {
@@ -353,6 +370,16 @@ fn iconFrame(y: objc.CGFloat) objc.Rect {
             .y = y + Layout.icon_y_offset,
         },
         .size = .{ .width = Layout.icon_size, .height = Layout.icon_size },
+    };
+}
+
+fn searchIconFrame(mode: Mode) objc.Rect {
+    return .{
+        .origin = .{
+            .x = Layout.search_icon_x,
+            .y = Layout.inputY(mode) + (Layout.input_height - Layout.search_icon_size) / 2,
+        },
+        .size = .{ .width = Layout.search_icon_size, .height = Layout.search_icon_size },
     };
 }
 
