@@ -9,6 +9,7 @@ pub const Theme = struct {
     selected_text: objc.Color,
     divider: objc.Color,
     accent: objc.Color,
+    cursor: objc.Color,
     shortcut_fill: objc.Color,
     shortcut_text: objc.Color,
     shortcut_border: objc.Color,
@@ -16,32 +17,34 @@ pub const Theme = struct {
     pub fn current(app: objc.Application) Theme {
         if (app.isDarkMode()) {
             return .{
-                .panel = hexColorAlpha(Palette.Dark.glass_tint, 0.68),
+                .panel = hexColorAlpha(Palette.Dark.glass_tint, Alpha.Dark.panel),
                 .input = objc.Color.clear(),
                 .text = hexColor(Palette.Dark.ink),
                 .muted = hexColor(Palette.Dark.quiet_ink),
-                .selected = hexColorAlpha(Palette.Dark.selected_band, 0.74),
+                .selected = hexColorAlpha(Palette.Dark.selected_band, Alpha.Dark.selected),
                 .selected_text = hexColor(Palette.Dark.selected_ink),
-                .divider = hexColorAlpha(Palette.Dark.divider, 0.42),
-                .accent = hexColorAlpha(Palette.glass_edge, 0.70),
+                .divider = hexColorAlpha(Palette.Dark.divider, Alpha.Dark.divider),
+                .accent = hexColorAlpha(Palette.glass_edge, Alpha.glass_edge),
+                .cursor = hexColorAlpha(Palette.cursor, Alpha.cursor),
                 .shortcut_fill = hexColor(Palette.Dark.key_fill),
                 .shortcut_text = hexColor(Palette.Dark.key_text),
-                .shortcut_border = hexColorAlpha(Palette.Dark.key_fill, 0.20),
+                .shortcut_border = hexColorAlpha(Palette.Dark.key_fill, Alpha.Dark.shortcut_border),
             };
         }
 
         return .{
-            .panel = hexColorAlpha(Palette.Light.glass_tint, 0.52),
+            .panel = hexColorAlpha(Palette.Light.glass_tint, Alpha.Light.panel),
             .input = objc.Color.clear(),
             .text = hexColor(Palette.Light.ink),
             .muted = hexColor(Palette.Light.quiet_ink),
-            .selected = hexColorAlpha(Palette.Light.selected_band, 0.76),
+            .selected = hexColorAlpha(Palette.Light.selected_band, Alpha.Light.selected),
             .selected_text = hexColor(Palette.Light.selected_ink),
-            .divider = hexColorAlpha(Palette.Light.divider, 0.44),
-            .accent = hexColorAlpha(Palette.glass_edge, 0.70),
+            .divider = hexColorAlpha(Palette.Light.divider, Alpha.Light.divider),
+            .accent = hexColorAlpha(Palette.glass_edge, Alpha.glass_edge),
+            .cursor = hexColorAlpha(Palette.cursor, Alpha.cursor),
             .shortcut_fill = hexColor(Palette.Light.key_fill),
             .shortcut_text = hexColor(Palette.Light.key_text),
-            .shortcut_border = hexColorAlpha(Palette.Light.key_fill, 0.25),
+            .shortcut_border = hexColorAlpha(Palette.Light.key_fill, Alpha.Light.shortcut_border),
         };
     }
 };
@@ -59,6 +62,7 @@ fn hexColorAlpha(comptime value: u24, alpha: objc.CGFloat) objc.Color {
 
 const Palette = struct {
     const glass_edge = 0xc5cdfc;
+    const cursor = 0xd1dbef;
 
     const Light = struct {
         const glass_tint = 0x3f4f93;
@@ -80,5 +84,24 @@ const Palette = struct {
         const divider = 0xffffff;
         const key_fill = 0xffffff;
         const key_text = 0x252b46;
+    };
+};
+
+const Alpha = struct {
+    const glass_edge: objc.CGFloat = 0.70;
+    const cursor: objc.CGFloat = 0.72;
+
+    const Light = struct {
+        const panel: objc.CGFloat = 0.52;
+        const selected: objc.CGFloat = 0.76;
+        const divider: objc.CGFloat = 0.44;
+        const shortcut_border: objc.CGFloat = 0.25;
+    };
+
+    const Dark = struct {
+        const panel: objc.CGFloat = 0.68;
+        const selected: objc.CGFloat = 0.74;
+        const divider: objc.CGFloat = 0.42;
+        const shortcut_border: objc.CGFloat = 0.20;
     };
 };

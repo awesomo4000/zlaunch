@@ -481,7 +481,12 @@ pub const View = struct {
 pub const GlassSurface = struct {
     object: Object = .{},
     content: View = .{},
-    uses_native_glass: BOOL = false,
+    kind: Kind = .visual_effect,
+
+    const Kind = enum {
+        native_glass,
+        visual_effect,
+    };
 
     pub const Style = enum(NSInteger) {
         regular = 0,
@@ -506,7 +511,7 @@ pub const GlassSurface = struct {
             const glass = GlassSurface{
                 .object = .wrap(msgSendIdRect(allocated.id, sel("initWithFrame:"), options.frame)),
                 .content = content,
-                .uses_native_glass = true,
+                .kind = .native_glass,
             };
             glass.setNativeStyle(options.style);
             glass.setTintColor(options.tint_color);
@@ -542,17 +547,20 @@ pub const GlassSurface = struct {
         const layer = Layer{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
         layer.setCornerRadius(radius);
         layer.setMasksToBounds(true);
-        if (self.uses_native_glass) msgSendVoidCGFloat(self.object.id, sel("setCornerRadius:"), radius);
+        switch (self.kind) {
+            .native_glass => msgSendVoidCGFloat(self.object.id, sel("setCornerRadius:"), radius),
+            .visual_effect => {},
+        }
     }
 
     pub fn setTintColor(self: GlassSurface, color: Color) void {
-        if (self.uses_native_glass) {
-            msgSendVoidId(self.object.id, sel("setTintColor:"), color.object.id);
-            return;
+        switch (self.kind) {
+            .native_glass => msgSendVoidId(self.object.id, sel("setTintColor:"), color.object.id),
+            .visual_effect => {
+                const layer = Layer{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
+                layer.setBackgroundColor(color.cgColor());
+            },
         }
-
-        const layer = Layer{ .object = .wrap(msgSendId0(self.object.id, sel("layer"))) };
-        layer.setBackgroundColor(color.cgColor());
     }
 
     pub fn addSubview(self: GlassSurface, view: anytype) void {
