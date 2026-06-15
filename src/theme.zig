@@ -151,18 +151,18 @@ const Alpha = struct {
     const cursor: objc.CGFloat = 0.72;
 
     const Light = struct {
-        const panel: objc.CGFloat = 0.52;
-        const gradient_start: objc.CGFloat = 0.34;
-        const gradient_end: objc.CGFloat = 0.46;
+        const panel: objc.CGFloat = 0.46;
+        const gradient_start: objc.CGFloat = 0.30;
+        const gradient_end: objc.CGFloat = 0.40;
         const selected: objc.CGFloat = 0.76;
         const divider: objc.CGFloat = 0.44;
         const shortcut_border: objc.CGFloat = 0.25;
     };
 
     const Dark = struct {
-        const panel: objc.CGFloat = 0.68;
-        const gradient_start: objc.CGFloat = 0.30;
-        const gradient_end: objc.CGFloat = 0.44;
+        const panel: objc.CGFloat = 0.60;
+        const gradient_start: objc.CGFloat = 0.26;
+        const gradient_end: objc.CGFloat = 0.38;
         const selected: objc.CGFloat = 0.74;
         const divider: objc.CGFloat = 0.42;
         const shortcut_border: objc.CGFloat = 0.20;
