@@ -7,10 +7,11 @@ pub const Layout = struct {
         pub const width: objc.CGFloat = 560;
         pub const top_padding: objc.CGFloat = 14;
         pub const bottom_padding: objc.CGFloat = top_padding;
+        pub const expanded_bottom_padding: objc.CGFloat = 30;
         pub const corner_radius: objc.CGFloat = 36;
         pub const screen_y_ratio: objc.CGFloat = 0.62;
         pub const compact_height: objc.CGFloat = top_padding + Search.height + bottom_padding;
-        pub const expanded_height: objc.CGFloat = top_padding + Search.height + List.divider_gap + List.search_to_rows_gap + ResultRow.height * List.visible_rows + bottom_padding;
+        pub const expanded_height: objc.CGFloat = top_padding + Search.height + List.divider_gap + List.search_to_rows_gap + ResultRow.height * List.visible_rows + expanded_bottom_padding;
     };
 
     pub const Search = struct {
@@ -32,6 +33,9 @@ pub const Layout = struct {
         pub const search_to_rows_gap: objc.CGFloat = 12;
         pub const divider_gap: objc.CGFloat = 6;
         pub const divider_height: objc.CGFloat = 1;
+        pub const more_indicator_y: objc.CGFloat = 8;
+        pub const more_indicator_width: objc.CGFloat = 42;
+        pub const more_indicator_height: objc.CGFloat = 10;
     };
 
     pub const ResultRow = struct {
@@ -107,6 +111,7 @@ pub const Elements = struct {
 pub const ResultList = struct {
     rows: Rows = [_]Row{.{}} ** Layout.visible_rows,
     divider: objc.View = .{},
+    more_indicator: objc.ImageView = .{},
     mouse_target: objc.View = .{},
 
     pub fn create(surface: objc.View, colors: theme.Theme) ResultList {
@@ -118,6 +123,17 @@ pub const ResultList = struct {
             .background_color = colors.divider,
         });
         surface.addSubview(divider);
+
+        const more_indicator = objc.ImageView.create(.{
+            .frame = moreIndicatorFrame(),
+            .image = objc.Image.systemSymbol(
+                objc.String.fromStatic("chevron.compact.down"),
+                objc.String.fromStatic("More results"),
+            ),
+        });
+        more_indicator.setContentTintColor(colors.divider);
+        more_indicator.setHidden(true);
+        surface.addSubview(more_indicator);
 
         var rows: Rows = [_]Row{.{}} ** Layout.visible_rows;
         var y: objc.CGFloat = Layout.rowStartY();
@@ -138,6 +154,7 @@ pub const ResultList = struct {
         return .{
             .rows = rows,
             .divider = divider,
+            .more_indicator = more_indicator,
             .mouse_target = mouse_target,
         };
     }
@@ -145,6 +162,7 @@ pub const ResultList = struct {
     pub fn applyTheme(self: ResultList, colors: theme.Theme) void {
         for (self.rows) |row| row.applyTheme(colors);
         self.divider.setFillColor(colors.divider);
+        self.more_indicator.setContentTintColor(colors.divider);
     }
 
     pub fn setMode(self: ResultList, mode: Mode) void {
@@ -161,8 +179,15 @@ pub const ResultList = struct {
         });
         self.divider.setHidden(mode == .compact);
 
+        self.more_indicator.setFrame(moreIndicatorFrame());
+        if (mode == .compact) self.more_indicator.setHidden(true);
+
         self.mouse_target.setFrame(resultsMouseFrame());
         self.mouse_target.setHidden(mode == .compact);
+    }
+
+    pub fn setMoreBelow(self: ResultList, more_below: bool) void {
+        self.more_indicator.setHidden(!more_below);
     }
 };
 
@@ -420,6 +445,16 @@ fn resultsMouseFrame() objc.Rect {
             .y = Layout.rowStartY() - Layout.ResultRow.height * @as(objc.CGFloat, @floatFromInt(Layout.visible_rows - 1)),
         },
         .size = .{ .width = Layout.List.width, .height = height },
+    };
+}
+
+fn moreIndicatorFrame() objc.Rect {
+    return .{
+        .origin = .{
+            .x = Layout.List.x + (Layout.List.width - Layout.List.more_indicator_width) / 2,
+            .y = Layout.List.more_indicator_y,
+        },
+        .size = .{ .width = Layout.List.more_indicator_width, .height = Layout.List.more_indicator_height },
     };
 }
 

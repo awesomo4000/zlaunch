@@ -267,6 +267,7 @@ const Launcher = struct {
 
     fn clearRows(self: *Launcher) void {
         for (self.elements.results.rows) |row| row.clear(self.arena);
+        self.elements.results.setMoreBelow(false);
     }
 
     fn drawRows(self: *Launcher) void {
@@ -284,6 +285,7 @@ const Launcher = struct {
                 row.clear(self.arena);
             }
         }
+        self.elements.results.setMoreBelow(self.hasMoreBelow());
     }
 
     fn updateSelection(self: *Launcher) void {
@@ -302,6 +304,10 @@ const Launcher = struct {
     fn visibleResultsAreStale(self: *Launcher) bool {
         return self.index.visibleMatchesContainMissingPath(self.scroll_offset, ui.Layout.visible_rows);
     }
+
+    fn hasMoreBelow(self: Launcher) bool {
+        return self.scroll_offset + ui.Layout.visible_rows < self.index.count();
+    }
 };
 
 var launcher: Launcher = undefined;
@@ -319,6 +325,7 @@ pub fn main(init_context: std.process.Init) !void {
         .launch_highlighted = onLaunchHighlighted,
         .launch_visible_row = onLaunchVisibleRow,
         .hover_visible_row = onHoverVisibleRow,
+        .scroll_results = onScrollResults,
         .autocomplete = onAutocomplete,
         .refresh_apps = onRefreshApps,
         .dismiss = onDismiss,
@@ -367,6 +374,11 @@ fn onLaunchVisibleRow(context: *anyopaque, visible_index: usize) bool {
 fn onHoverVisibleRow(context: *anyopaque, visible_index: usize) void {
     const app_launcher: *Launcher = @ptrCast(@alignCast(context));
     app_launcher.hoverVisibleRow(visible_index);
+}
+
+fn onScrollResults(context: *anyopaque, delta: i32) void {
+    const app_launcher: *Launcher = @ptrCast(@alignCast(context));
+    app_launcher.moveHighlight(delta);
 }
 
 fn onAutocomplete(context: *anyopaque) void {

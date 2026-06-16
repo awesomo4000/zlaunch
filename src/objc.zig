@@ -1160,6 +1160,12 @@ pub fn msgSendBoolSelector(recv: Id, op: Selector, arg: Selector) BOOL {
     return f(recv, op, arg);
 }
 
+pub fn msgSendBool0(recv: Id, op: Selector) BOOL {
+    const Fn = *const fn (Id, Selector) callconv(.c) BOOL;
+    const f: Fn = @ptrCast(&objc_msgSend);
+    return f(recv, op);
+}
+
 pub fn msgSendVoidBool(recv: Id, op: Selector, arg: BOOL) void {
     const Fn = *const fn (Id, Selector, BOOL) callconv(.c) void;
     const f: Fn = @ptrCast(&objc_msgSend);

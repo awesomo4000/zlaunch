@@ -3,6 +3,8 @@ const objc = @import("objc.zig");
 const ui = @import("ui.zig");
 
 const command_modifier: objc.NSUInteger = 1 << 20;
+const precise_scroll_row_delta: objc.CGFloat = 36;
+const wheel_scroll_row_delta: objc.CGFloat = 3;
 
 pub const Handler = struct {
     context: *anyopaque,
@@ -11,6 +13,7 @@ pub const Handler = struct {
     launch_highlighted: *const fn (*anyopaque) void,
     launch_visible_row: *const fn (*anyopaque, usize) bool,
     hover_visible_row: *const fn (*anyopaque, usize) void,
+    scroll_results: *const fn (*anyopaque, i32) void,
     autocomplete: *const fn (*anyopaque) void,
     refresh_apps: *const fn (*anyopaque) void,
     dismiss: *const fn (*anyopaque) void,
@@ -54,6 +57,7 @@ const CommandSelectors = struct {
 
 var handler: Handler = undefined;
 var command_selectors: CommandSelectors = undefined;
+var scroll_delta_remainder: objc.CGFloat = 0;
 
 pub fn install(app_handler: Handler) objc.Object {
     handler = app_handler;
@@ -96,6 +100,7 @@ fn registerResultsMouseViewClass() void {
         _ = objc.addMethod(class, objc.sel("acceptsFirstMouse:"), &returnYesForEvent, "B@:@");
         _ = objc.addMethod(class, objc.sel("mouseMoved:"), &resultsMouseMoved, "v@:@");
         _ = objc.addMethod(class, objc.sel("mouseDown:"), &resultsMouseDown, "v@:@");
+        _ = objc.addMethod(class, objc.sel("scrollWheel:"), &resultsScrollWheel, "v@:@");
         objc.registerClassPair(class);
     }
 }
@@ -119,6 +124,26 @@ fn resultsMouseMoved(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.
 fn resultsMouseDown(self: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) void {
     const visible_index = visibleRowForMouseEvent(self, event) orelse return;
     _ = handler.launch_visible_row(handler.context, visible_index);
+}
+
+fn resultsScrollWheel(_: objc.Id, _: objc.Selector, event: objc.Id) callconv(.c) void {
+    if (event == null) return;
+    const delta_y = objc.msgSendCGFloat0(event, objc.sel("scrollingDeltaY"));
+    const row_delta = if (objc.msgSendBool0(event, objc.sel("hasPreciseScrollingDeltas"))) precise_scroll_row_delta else wheel_scroll_row_delta;
+
+    if (delta_y == 0) return;
+    if (scroll_delta_remainder != 0 and (scroll_delta_remainder < 0) != (delta_y < 0)) {
+        scroll_delta_remainder = 0;
+    }
+    scroll_delta_remainder += delta_y;
+
+    if (scroll_delta_remainder <= -row_delta) {
+        scroll_delta_remainder += row_delta;
+        handler.scroll_results(handler.context, 1);
+    } else if (scroll_delta_remainder >= row_delta) {
+        scroll_delta_remainder -= row_delta;
+        handler.scroll_results(handler.context, -1);
+    }
 }
 
 fn visibleRowForMouseEvent(view: objc.Id, event: objc.Id) ?usize {
