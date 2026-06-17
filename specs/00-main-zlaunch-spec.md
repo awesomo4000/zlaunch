@@ -174,6 +174,7 @@ At startup (and optionally refreshed on each show if cheap enough), enumerate `.
 - `/System/Applications`
 - `/System/Applications/Utilities`
 - `~/Applications`
+- `~/Applications/Chrome Apps.localized`
 
 Use Zig's `std.fs` to read these directories; collect every entry ending in `.app`. The display name is the bundle name with `.app` stripped (sufficient for v1; reading `CFBundleDisplayName` from `Contents/Info.plist` is a later refinement). Store an array of structs:
 

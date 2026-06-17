@@ -51,7 +51,10 @@ pub fn sortMatchesByLaunchCount(all_apps: []const App, matches: []usize, launch_
 fn discoverUserApplications(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map, list: *std.ArrayList(App)) !void {
     const home = env.get("HOME") orelse return;
     const path = try std.fs.path.join(arena, &.{ home, "Applications" });
-    try discoverDir(arena, io, list, path);
+    discoverDir(arena, io, list, path) catch {};
+
+    const chrome_apps_path = try std.fs.path.join(arena, &.{ path, "Chrome Apps.localized" });
+    discoverDir(arena, io, list, chrome_apps_path) catch {};
 }
 
 fn discoverDir(arena: std.mem.Allocator, io: std.Io, list: *std.ArrayList(App), path: []const u8) !void {

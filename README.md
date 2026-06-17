@@ -97,5 +97,6 @@ zlaunch scans:
 - `/System/Applications`
 - `/System/Applications/Utilities`
 - `~/Applications`
+- `~/Applications/Chrome Apps.localized`
 
 Symlinked `.app` bundles are included, which covers apps such as Safari on newer macOS installs.
