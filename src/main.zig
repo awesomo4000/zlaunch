@@ -34,7 +34,7 @@ const Launcher = struct {
     previous_app: objc.RunningApplication = .{},
     dismissing: bool = false,
 
-    fn init(init_context: std.process.Init) !Launcher {
+    fn init(init_context: std.process.Init, app_paths: []const []const u8) !Launcher {
         const arena = init_context.arena.allocator();
         const app = objc.Application.shared();
         app.setActivationPolicy(.accessory);
@@ -42,7 +42,7 @@ const Launcher = struct {
         return .{
             .arena = arena,
             .io = init_context.io,
-            .index = try app_index.AppIndex.init(arena, init_context.io, init_context.environ_map),
+            .index = try app_index.AppIndex.init(arena, init_context.io, init_context.environ_map, app_paths),
             .icons = icon_cache.IconCache.init(arena),
             .launch_stats = try stats.Stats.load(arena, init_context.io, init_context.environ_map),
             .app = app,
@@ -315,7 +315,7 @@ var launcher: Launcher = undefined;
 pub fn main(init_context: std.process.Init) !void {
     const options = try parseArgs(init_context);
     const app_config = try config.load(init_context.arena.allocator(), init_context.io, init_context.environ_map);
-    launcher = try Launcher.init(init_context);
+    launcher = try Launcher.init(init_context, app_config.app_paths);
     launcher.setQuery("");
 
     launcher.delegate = callbacks.install(.{

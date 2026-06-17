@@ -71,7 +71,15 @@ Default config:
 ```json
 {
   "version": 1,
-  "hotkey": "ctrl-space"
+  "hotkey": "ctrl-space",
+  "paths": [
+    "/Applications",
+    "/Applications/Utilities",
+    "/System/Applications",
+    "/System/Applications/Utilities",
+    "~/Applications",
+    "~/Applications/Chrome Apps.localized"
+  ]
 }
 ```
 
@@ -82,15 +90,21 @@ Example:
 ```json
 {
   "version": 1,
-  "hotkey": "ctrl-option-m"
+  "hotkey": "ctrl-option-m",
+  "paths": [
+    "/Applications",
+    "~/Applications/Chrome Apps.localized"
+  ]
 }
 ```
+
+Configured `paths` replace the built-in defaults instead of being merged with them. `~` and `~/` are expanded to your home directory.
 
 Application launch counts for sorting are in `~/.config/zlaunch/stats.json` and record app name and launch count. This is read at start of zlaunch and used for sort ordering so most common apps appear at the top.
 
 ## App Discovery
 
-zlaunch scans:
+By default, zlaunch scans:
 
 - `/Applications`
 - `/Applications/Utilities`

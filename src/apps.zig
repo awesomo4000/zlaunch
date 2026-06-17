@@ -6,13 +6,12 @@ pub const App = struct {
     path: []const u8,
 };
 
-pub fn discover(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map) !std.ArrayList(App) {
+pub fn discover(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map, app_paths: []const []const u8) !std.ArrayList(App) {
     var list: std.ArrayList(App) = .empty;
-    try discoverDir(arena, io, &list, "/Applications");
-    discoverDir(arena, io, &list, "/Applications/Utilities") catch {};
-    discoverDir(arena, io, &list, "/System/Applications") catch {};
-    discoverDir(arena, io, &list, "/System/Applications/Utilities") catch {};
-    discoverUserApplications(arena, io, env, &list) catch {};
+    for (app_paths) |path| {
+        const expanded_path = expandPath(arena, env, path) catch continue;
+        discoverDir(arena, io, &list, expanded_path) catch {};
+    }
     std.sort.block(App, list.items, {}, appLessThan);
     return list;
 }
@@ -48,13 +47,13 @@ pub fn sortMatchesByLaunchCount(all_apps: []const App, matches: []usize, launch_
     }, Context.lessThan);
 }
 
-fn discoverUserApplications(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map, list: *std.ArrayList(App)) !void {
-    const home = env.get("HOME") orelse return;
-    const path = try std.fs.path.join(arena, &.{ home, "Applications" });
-    discoverDir(arena, io, list, path) catch {};
-
-    const chrome_apps_path = try std.fs.path.join(arena, &.{ path, "Chrome Apps.localized" });
-    discoverDir(arena, io, list, chrome_apps_path) catch {};
+fn expandPath(arena: std.mem.Allocator, env: *std.process.Environ.Map, path: []const u8) ![]const u8 {
+    if (std.mem.eql(u8, path, "~")) return env.get("HOME") orelse error.HomeNotSet;
+    if (std.mem.startsWith(u8, path, "~/")) {
+        const home = env.get("HOME") orelse return error.HomeNotSet;
+        return std.fs.path.join(arena, &.{ home, path[2..] });
+    }
+    return path;
 }
 
 fn discoverDir(arena: std.mem.Allocator, io: std.Io, list: *std.ArrayList(App), path: []const u8) !void {
@@ -141,6 +140,20 @@ test "duplicate app bundle names are skipped" {
     try std.testing.expect(containsApplication(&test_apps, "Safari.app"));
     try std.testing.expect(containsApplication(&test_apps, "safari.app"));
     try std.testing.expect(!containsApplication(&test_apps, "Safari Technology Preview.app"));
+}
+
+test "expandPath expands home-relative paths" {
+    var env = std.process.EnvMap.init(std.testing.allocator);
+    defer env.deinit();
+    try env.put("HOME", "/Users/example");
+
+    var arena_state = std.heap.ArenaAllocator.init(std.testing.allocator);
+    defer arena_state.deinit();
+
+    const arena = arena_state.allocator();
+    try std.testing.expectEqualStrings("/Applications", try expandPath(arena, &env, "/Applications"));
+    try std.testing.expectEqualStrings("/Users/example", try expandPath(arena, &env, "~"));
+    try std.testing.expectEqualStrings("/Users/example/Applications", try expandPath(arena, &env, "~/Applications"));
 }
 
 test "sort matches ranks launch counts before alphabetical order" {

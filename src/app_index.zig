@@ -8,20 +8,22 @@ pub const AppIndex = struct {
     arena: std.mem.Allocator,
     io: std.Io,
     env: *std.process.Environ.Map,
+    app_paths: []const []const u8 = &.{},
     all: std.ArrayList(App) = .empty,
     matches: std.ArrayList(usize) = .empty,
 
-    pub fn init(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map) !AppIndex {
+    pub fn init(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map, app_paths: []const []const u8) !AppIndex {
         return .{
             .arena = arena,
             .io = io,
             .env = env,
-            .all = try apps.discover(arena, io, env),
+            .app_paths = app_paths,
+            .all = try apps.discover(arena, io, env, app_paths),
         };
     }
 
     pub fn refresh(self: *AppIndex) !void {
-        self.all = try apps.discover(self.arena, self.io, self.env);
+        self.all = try apps.discover(self.arena, self.io, self.env, self.app_paths);
     }
 
     pub fn search(self: *AppIndex, query_lower: []const u8, launch_stats: stats.Stats) void {

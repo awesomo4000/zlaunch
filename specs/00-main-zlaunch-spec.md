@@ -226,18 +226,26 @@ fn launch(path: []const u8, gpa: std.mem.Allocator) void {
 - The process never exits on dismissal; only the panel is ordered out. The Carbon hotkey remains registered for the next press.
 - On `showLauncher()`: rebuild/refresh the screen position, set string value to empty, run the filter with empty query (shows all, prefix-sorted), make the panel key and front (`[panel makeKeyAndOrderFront:nil]`, `[NSApp activateIgnoringOtherApps:true]`), make the text field first responder.
 
-## 9. Configuration (optional, v1.1)
+## 9. Configuration
 
-A plain text file at `~/.config/zlaunch/config` is enough:
+A JSON file at `~/.config/zlaunch/zlaunch.json` controls the global hotkey and application discovery paths:
 
+```json
+{
+  "version": 1,
+  "hotkey": "ctrl-space",
+  "paths": [
+    "/Applications",
+    "/Applications/Utilities",
+    "/System/Applications",
+    "/System/Applications/Utilities",
+    "~/Applications",
+    "~/Applications/Chrome Apps.localized"
+  ]
+}
 ```
-hotkey = ctrl-space
-match  = substring        # or "prefix"
-rows   = 8
-dirs   = /Applications, /System/Applications, ~/Applications
-```
 
-Parsing this is a later concern; v1 hardcodes the defaults named throughout this document.
+If `paths` is present, use that configured list as-is rather than merging it with the built-in defaults. `~` and `~/` expand to the user's home directory.
 
 ## 10. Build
 
