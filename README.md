@@ -14,7 +14,7 @@ zlaunch discovers local `.app` bundles at startup, filters them in process, and 
 
 ## Features
 
-- Global hotkey, default `cmd-space`  (may need to unassign it from spotlight)
+- Global hotkey, default `ctrl-space`
 - Substring app search, case insensitive
 - Arrow-key selection with a five-row scrolling result list
 - `cmd-1` through `cmd-5` to launch visible rows
@@ -44,7 +44,7 @@ Show the launcher immediately when launching the app::
 
 ## Usage
 
-- `cmd-space`: show zlaunch
+- `ctrl-space`: show zlaunch
 - Type to filter apps
 - `up` / `down`: move selection
 - `return`: launch selected app
@@ -52,7 +52,7 @@ Show the launcher immediately when launching the app::
 - `tab`: autocomplete common prefix
 - `esc`: dismiss
 
-If `cmd-space` is still bound to Spotlight, macOS will keep it. Unbind Spotlight in System Settings before using the default hotkey. If you want it to stay running, run it from your shell with `&` to background it:
+If you want zlaunch to stay running, run it from your shell with `&` to background it:
 
 `$ zlaunch & `
 
@@ -71,7 +71,7 @@ Default config:
 ```json
 {
   "version": 1,
-  "hotkey": "cmd-space"
+  "hotkey": "ctrl-space"
 }
 ```
 

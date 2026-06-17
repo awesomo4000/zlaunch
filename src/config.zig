@@ -7,7 +7,7 @@ const config_file_name = "zlaunch.json";
 const default_config =
     \\{
     \\  "version": 1,
-    \\  "hotkey": "cmd-space"
+    \\  "hotkey": "ctrl-space"
     \\}
     \\
 ;
@@ -18,7 +18,7 @@ pub const Config = struct {
 
 const FileConfig = struct {
     version: u32 = 1,
-    hotkey: []const u8 = "cmd-space",
+    hotkey: []const u8 = "ctrl-space",
 };
 
 pub fn load(arena: std.mem.Allocator, io: std.Io, env: *std.process.Environ.Map) !Config {

@@ -1,6 +1,6 @@
 # zlaunch — Specification
 
-A minimal macOS application launcher. Press a global hotkey (default Cmd-Space), a borderless window appears over everything, you type, the list of matching applications filters live as you type, Enter launches the highlighted one. Escape dismisses.
+A minimal macOS application launcher. Press a global hotkey (default Control-Space), a borderless window appears over everything, you type, the list of matching applications filters live as you type, Enter launches the highlighted one. Escape dismisses.
 
 Target: Zig 0.16.0, macOS (aarch64 + x86-64), no external dependencies beyond system frameworks.
 
@@ -90,7 +90,7 @@ fn hotkeyHandler(_: EventHandlerCallRef, _: EventRef, _: ?*anyopaque) callconv(.
 }
 ```
 
-**Cmd-Space conflict.** While Spotlight owns Cmd-Space, the system symbolic hotkey wins and `RegisterEventHotKey` will not receive it. The launcher must detect that its registration never fires (or simply document this) and instruct the user to unbind Spotlight: System Settings → Keyboard → Keyboard Shortcuts → Spotlight → uncheck "Show Spotlight search". After that the registration grabs Cmd-Space cleanly. Until the user is ready to do that, ship a non-conflicting default (e.g. Cmd-Alt-Space, modifiers `cmdKey | optionKey` where `optionKey = 0x0800`).
+**System hotkey conflicts.** If macOS already owns a chord, the system symbolic hotkey wins and `RegisterEventHotKey` will not receive it. The launcher must detect registration failure or document that the user should choose another binding. Ship a convenient default such as Control-Space, with modifier `controlKey = 0x1000`.
 
 `EventHandlerUPP` is a plain function pointer on modern macOS — the PowerPC UPP indirection is gone — so passing the Zig fn directly is correct.
 
@@ -230,7 +230,7 @@ fn launch(path: []const u8, gpa: std.mem.Allocator) void {
 A plain text file at `~/.config/zlaunch/config` is enough:
 
 ```
-hotkey = cmd-alt-space
+hotkey = ctrl-space
 match  = substring        # or "prefix"
 rows   = 8
 dirs   = /Applications, /System/Applications, ~/Applications
@@ -257,12 +257,12 @@ exe.root_module.linkSystemLibrary("objc", .{});
 b.installArtifact(exe);
 ```
 
-The result is a single static-ish binary linking only system frameworks. It can be run directly from the terminal for development; to make Cmd-Space binding behave well and to get proper activation, later wrap it in a minimal `.app` bundle with an `Info.plist` declaring `LSUIElement = true` (the bundle equivalent of the accessory activation policy).
+The result is a single static-ish binary linking only system frameworks. It can be run directly from the terminal for development; to get proper activation, later wrap it in a minimal `.app` bundle with an `Info.plist` declaring `LSUIElement = true` (the bundle equivalent of the accessory activation policy).
 
 ## 11. Implementation order
 
 1. Bare `NSApplication` accessory app that shows an empty borderless panel on launch and exits on Escape. Validates the Obj-C bridge and the per-signature `msgSend` wrappers.
-2. Add Carbon hotkey; panel now shows on Cmd-Alt-Space instead of at launch.
+2. Add Carbon hotkey; panel now shows on Control-Space instead of at launch.
 3. App discovery; dump names to stdout to confirm enumeration.
 4. Text field + custom list view; wire `controlTextDidChange:` to filter and redraw.
 5. Arrow-key highlight movement and Enter-to-launch via `doCommandBySelector:`.

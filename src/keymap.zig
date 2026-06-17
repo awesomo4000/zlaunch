@@ -10,7 +10,7 @@ const carbon_shift: u32 = 1 << 9;
 const carbon_option: u32 = 1 << 11;
 const carbon_control: u32 = 1 << 12;
 
-pub const default_show_launcher = parse("cmd-space") orelse unreachable;
+pub const default_show_launcher = parse("ctrl-space") orelse unreachable;
 
 pub fn parse(text: []const u8) ?Key {
     var key_code: ?u32 = null;
@@ -100,10 +100,10 @@ fn keyCode(part: []const u8) ?u32 {
     return null;
 }
 
-test "parse command space" {
-    const key = parse("cmd-space").?;
+test "parse default launcher hotkey" {
+    const key = parse("ctrl-space").?;
     try std.testing.expectEqual(@as(u32, 0x31), key.carbon_key_code);
-    try std.testing.expectEqual(@as(u32, carbon_cmd), key.carbon_modifiers);
+    try std.testing.expectEqual(@as(u32, carbon_control), key.carbon_modifiers);
 }
 
 test "parse aliases and digits" {
