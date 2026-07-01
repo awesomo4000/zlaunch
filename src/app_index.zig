@@ -1,6 +1,7 @@
 const std = @import("std");
 const apps = @import("apps.zig");
 const stats = @import("stats.zig");
+const config = @import("config.zig");
 
 pub const App = apps.App;
 
@@ -23,6 +24,11 @@ pub const AppIndex = struct {
     }
 
     pub fn refresh(self: *AppIndex) !void {
+        // Re-read the config so edits to the configured paths take effect on
+        // refresh; keep the existing paths if the config fails to load.
+        if (config.load(self.arena, self.io, self.env)) |reloaded| {
+            self.app_paths = reloaded.app_paths;
+        } else |_| {}
         self.all = try apps.discover(self.arena, self.io, self.env, self.app_paths);
     }
 
